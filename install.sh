@@ -1,48 +1,58 @@
 #!/bin/bash
-# install.sh - Setup fuer X-Root Mounter (Version 3.0)
+# install.sh - Setup fuer X-Root Mounter (Version 4.0)
 
-REAL_USER=$USER
-REAL_HOME=$HOME
+REAL_USER=$(id -un)
+REAL_HOME=$(eval echo ~$REAL_USER)
 BIN_DIR="$REAL_HOME/.local/bin"
 CONFIG_DIR="$REAL_HOME/.config/rootmounter"
 REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
 
-# 1. Software Installation
-# Wir nutzen -y und sorgen dafuer, dass die Datenbanken neu aufgebaut werden
+# Zorin OS nutzt Ubuntu-Basis. Wir ermitteln die Basis (focal oder jammy)
+UBUNTU_CODENAME=$(grep UBUNTU_CODENAME /etc/os-release | cut -d= -f2)
+[ -z "$UBUNTU_CODENAME" ] && UBUNTU_CODENAME="jammy"
+
+echo "Starte System-Vorbereitung fuer $UBUNTU_CODENAME..."
+
+# 1. Software Repositories
+sudo apt-get install -y software-properties-common curl
 sudo add-apt-repository ppa:sebastian-stenzel/cryptomator -y
-curl -s https://auth.insync.io/keys/insync.asc | sudo gpg --dearmor -o /usr/share/keyrings/insync-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/insync-archive-keyring.gpg] http://apt.insync.io/ubuntu $(lsb_release -cs) non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
+
+# Insync Repo Fix fuer Zorin
+curl -s https://auth.insync.io/keys/insync.asc | sudo gpg --dearmor --yes -o /usr/share/keyrings/insync-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/insync-archive-keyring.gpg] http://apt.insync.io/ubuntu $UBUNTU_CODENAME non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
 
 sudo apt-get update
 sudo apt-get install -y cryptomator insync zenity xdg-user-dirs
 
-# 2. Geisterordner physisch und visuell entfernen
+# 2. Ordner loeschen & Geisterordner fixen
 for folder in Bilder Videos Musik Dokumente Vorlagen Oeffentlich; do
     rm -rf "$REAL_HOME/$folder"
 done
 
-# Die System-Konfiguration fuer Pfade zuruecksetzen
-xdg-user-dirs-update --set DOWNLOAD "$REAL_HOME/Downloads"
+# XDG Pfade auf Home umbiegen (versteckt sie im Menue)
 xdg-user-dirs-update --set PICTURES "$REAL_HOME"
 xdg-user-dirs-update --set VIDEOS "$REAL_HOME"
 xdg-user-dirs-update --set MUSIC "$REAL_HOME"
 xdg-user-dirs-update --set DOCUMENTS "$REAL_HOME"
 
-# RADIKALER FIX: Die Seitenleiste (GTK Bookmarks) bereinigen
+# Seitenleiste (Bookmarks) bereinigen & neue Verzeichnisse hinzufuegen
 BOOKMARKS="$REAL_HOME/.config/gtk-3.0/bookmarks"
-if [ -f "$BOOKMARKS" ]; then
-    sed -i '/Bilder/d' "$BOOKMARKS"
-    sed -i '/Videos/d' "$BOOKMARKS"
-    sed -i '/Musik/d' "$BOOKMARKS"
-    sed -i '/Dokumente/d' "$BOOKMARKS"
-fi
+mkdir -p "$(dirname "$BOOKMARKS")"
+echo "file://$REAL_HOME/root root" > "$BOOKMARKS"
+echo "file://$REAL_HOME/workspace workspace" >> "$BOOKMARKS"
 
-# 3. Download der Skripte
+# 3. Skripte laden
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
 curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
 
-# 4. Config Erstellung
+# 4. Desktop Verknuepfungen erstellen (Sichtbarkeit auf Desktop)
+DESKTOP_DIR=$(xdg-user-dir DESKTOP)
+mkdir -p "$REAL_HOME/root" "$REAL_HOME/workspace"
+ln -sf "$REAL_HOME/root" "$DESKTOP_DIR/root"
+ln -sf "$REAL_HOME/workspace" "$DESKTOP_DIR/workspace"
+
+# 5. Config Erstellung
 cat <<EOF > "$CONFIG_DIR/config.ini"
 [Hardware]
 UUID=UNBEKANNT
@@ -53,7 +63,7 @@ ROOT_SUBFOLDERS=backup,client,clientpic,clientshare1,control,db,document,gallery
 WORKSPACE_SUBFOLDERS=user-backup,user-control,user-db,user-document,user-download,user-favorites,user-gallery,user-template,user-web
 EOF
 
-# 5. Desktop Starter und Menue-Update
+# 6. Desktop Starter & Menue-Refresh
 cat <<EOF > "$REAL_HOME/.local/share/applications/xrootmounter.desktop"
 [Desktop Entry]
 Name=X-Root Mounter
@@ -64,11 +74,8 @@ Terminal=false
 Categories=System;Utility;
 EOF
 
-# System zwingen, das Menue und die Icons neu zu laden
 sudo update-desktop-database
 update-desktop-database "$REAL_HOME/.local/share/applications"
 
-# 6. Abschlussmaske
-zenity --info --title="Setup abgeschlossen" --text="X-Root Setup war erfolgreich!\n\n- Cryptomator & Insync installiert.\n- Geisterordner aus Seitenleiste entfernt.\n- Starter im Menue verfuegbar.\n\nKlicke OK fuer die Hauptmaske."
-
+zenity --info --title="Setup abgeschlossen" --text="X-Root Setup erfolgreich!\n\n- Cryptomator & Insync installiert.\n- root & workspace Ordner auf dem Desktop sichtbar.\n- Starter im Menue verfuegbar.\n\nKlicke OK fuer die Hauptmaske."
 $BIN_DIR/xrootmounter &
