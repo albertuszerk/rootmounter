@@ -26,7 +26,6 @@ run_ssd_mount() {
     fi
     sudo mount -a
 
-    # Ordner-Struktur erstellen
     ROOT_SUBS=$(grep "ROOT_SUBFOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
     WORK_SUBS=$(grep "WORKSPACE_SUBFOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
     mkdir -p "$HOME/root" "$HOME/workspace"
@@ -37,23 +36,19 @@ run_ssd_mount() {
 }
 
 run_uninstall_full() {
-    zenity --question --text="Moechten Sie das System wirklich zuruecksetzen?\n(Mounts entfernen & Standardordner wiederherstellen)" || return
-    
-    # 1. Mounts entfernen
+    zenity --question --text="System wirklich zuruecksetzen?" || return
     sudo umount /mnt/m2_root 2>/dev/null
     sudo sed -i '/m2_root/d' /etc/fstab
     
-    # 2. Ordner wiederherstellen
+    # Ordner und Seitenleiste wiederherstellen
     mkdir -p ~/Bilder ~/Videos ~/Musik ~/Dokumente ~/Vorlagen ~/Oeffentlich
     xdg-user-dirs-update --set PICTURES "$HOME/Bilder"
     xdg-user-dirs-update --set VIDEOS "$HOME/Videos"
     xdg-user-dirs-update --set MUSIC "$HOME/Musik"
     xdg-user-dirs-update --set DOCUMENTS "$HOME/Dokumente"
     
-    # 3. Starter entfernen
     rm "$HOME/.local/share/applications/xrootmounter.desktop"
-    
-    zenity --info --text="Deinstallation abgeschlossen. Die App wird nun beendet."
+    zenity --info --text="Deinstallation fertig. App beendet."
     exit 0
 }
 
