@@ -1,8 +1,7 @@
 #!/bin/bash
 # xrootmounter.sh - Management App
 
-CONFIG_DIR="$HOME/.config/rootmounter"
-CONFIG_FILE="$CONFIG_DIR/config.ini"
+CONFIG_FILE="$HOME/.config/rootmounter/config.ini"
 
 save_uuid_to_config() {
     sed -i "s|^UUID=.*|UUID=$1|" "$CONFIG_FILE"
@@ -19,6 +18,7 @@ run_ssd_mount() {
     save_uuid_to_config "$SEL_UUID"
 
     sudo mkdir -p /mnt/m2_root
+    # NTFS Mount mit User-Rechten
     FSTAB_LINE="UUID=$SEL_UUID /mnt/m2_root ntfs-3g defaults,uid=$(id -u),gid=$(id -g),umask=007 0 2"
     
     if ! grep -q "$SEL_UUID" /etc/fstab; then
@@ -26,6 +26,7 @@ run_ssd_mount() {
     fi
     sudo mount -a
 
+    # Ordner-Struktur erstellen
     ROOT_SUBS=$(grep "ROOT_SUBFOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
     WORK_SUBS=$(grep "WORKSPACE_SUBFOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
     mkdir -p "$HOME/root" "$HOME/workspace"
@@ -36,16 +37,18 @@ run_ssd_mount() {
 }
 
 run_uninstall_full() {
-    zenity --question --text="System wirklich zuruecksetzen?" || return
+    zenity --question --text="System zuruecksetzen?" || return
     sudo umount /mnt/m2_root 2>/dev/null
     sudo sed -i '/m2_root/d' /etc/fstab
     
-    # Ordner und Seitenleiste wiederherstellen
-    mkdir -p ~/Bilder ~/Videos ~/Musik ~/Dokumente ~/Vorlagen ~/Oeffentlich
+    # Desktop Links entfernen
+    DESKTOP_DIR=$(xdg-user-dir DESKTOP)
+    rm "$DESKTOP_DIR/root" "$DESKTOP_DIR/workspace"
+    
+    # Ordner wiederherstellen
+    mkdir -p ~/Bilder ~/Videos ~/Musik ~/Dokumente
     xdg-user-dirs-update --set PICTURES "$HOME/Bilder"
     xdg-user-dirs-update --set VIDEOS "$HOME/Videos"
-    xdg-user-dirs-update --set MUSIC "$HOME/Musik"
-    xdg-user-dirs-update --set DOCUMENTS "$HOME/Dokumente"
     
     rm "$HOME/.local/share/applications/xrootmounter.desktop"
     zenity --info --text="Deinstallation fertig. App beendet."
@@ -66,8 +69,10 @@ while true; do
     case $CHOICE in
         "SSD/M.2 einhaengen") run_ssd_mount ;;
         "Konfiguration editieren") xdg-open "$CONFIG_FILE" ;;
-        "Cryptomator") cryptomator & ;;
-        "Insync") insync show & ;;
+        "Cryptomator") 
+            if command -v cryptomator >/dev/null; then cryptomator & else zenity --error --text="Cryptomator nicht gefunden!"; fi ;;
+        "Insync") 
+            if command -v insync >/dev/null; then insync show & else zenity --error --text="Insync nicht gefunden!"; fi ;;
         "Uninstall (Vollstaendig)") run_uninstall_full ;;
         "Beenden"|"") exit 0 ;;
     esac
