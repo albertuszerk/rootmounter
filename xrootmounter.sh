@@ -1,7 +1,6 @@
 #!/bin/bash
-# xrootmounter.sh - X-Root Konsole (Version 16.0)
+# xrootmounter.sh - X-Root Konsole (Version 17.0)
 
-# Singleton
 LOCK_FILE="/tmp/xrootmounter.lock"
 [ -e "$LOCK_FILE" ] && PID=$(cat "$LOCK_FILE") && ps -p $PID > /dev/null && exit 0
 echo $$ > "$LOCK_FILE"
@@ -9,6 +8,7 @@ echo $$ > "$LOCK_FILE"
 CONFIG_FILE="$HOME/.config/rootmounter/config.ini"
 BOOKMARKS="$HOME/.config/gtk-3.0/bookmarks"
 
+# Prüft, ob ein Verzeichnis wirklich Dateien enthält
 has_files() { [ -d "$1" ] && [ "$(find "$1" -type f | wc -l)" -gt 0 ]; }
 
 run_ssd_mount() {
@@ -34,29 +34,27 @@ run_modify_dirs() {
     MOD_LOG="ERSTELLTE STRUKTUREN:\n"
     
     for pair in $PAIRS; do
-        # Sauberer Split von Name und Farbe
         folder=${pair%%:*}
         color=${pair##*:}
         [ "$folder" == "$color" ] && color="grey"
 
         mkdir -p "$HOME/$folder"
         gio set -t string "$HOME/$folder" metadata::custom-icon-name "folder-$color" 2>/dev/null
-        
-        # Bookmark setzen
         grep -q "file://$HOME/$folder" "$BOOKMARKS" || echo "file://$HOME/$folder $folder" >> "$BOOKMARKS"
         
-        # Subfolder erstellen
-        SUBS=$(grep "^$folder=" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
-        for s in $SUBS; do mkdir -p "$HOME/$folder/$s"; done
-        MOD_LOG="$MOD_LOG- $folder (Farbe: $color, inklusive Subfolder)\n"
+        # Subfolder aus .ini lesen
+        SUBS=$(grep "^$folder=" "$CONFIG_FILE" | cut -d'=' -f2)
+        for s in ${SUBS//,/ }; do mkdir -p "$HOME/$folder/$s"; done
+        MOD_LOG="$MOD_LOG- $folder (Farbe: $color)\n"
     done
 
-    # Standardordner loeschen & Log erweitern
-    STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
+    # Standardordner loeschen
+    STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2)
     REMOVED_LOG=""
     for f in ${STD_FOLDERS//,/ }; do
-        if [ -d "$HOME/$f" ] && ! has_files "$HOME/$f"; then 
-            rm -rf "$HOME/$f"
+        TARGET_DIR="$HOME/$f"
+        if [ -d "$TARGET_DIR" ] && ! has_files "$TARGET_DIR"; then 
+            rm -rf "$TARGET_DIR"
             sed -i "/$f/d" "$BOOKMARKS" 2>/dev/null
             REMOVED_LOG="$REMOVED_LOG- $f\n"
         fi
@@ -67,20 +65,22 @@ run_modify_dirs() {
 }
 
 run_uninstall_full() {
-    WARN_TEXT="ACHTUNG: Dies entfernt root/workspace/workspace2, alle Subfolder und setzt alle Standardpfade zurueck. Fortfahren?"
+    WARN_TEXT="ACHTUNG: Dies entfernt root/workspace, den Starter und setzt alle Pfade zurueck. Fortfahren?"
     zenity --question --title="Vollstaendiger Uninstall" --text="$WARN_TEXT" || return
     
     sudo umount /mnt/m2_root 2>/dev/null
     sudo sed -i '/m2_root/d' /etc/fstab
     
-    MAIN_FOLDERS=$(grep "MAIN_FOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
-    for pair in ${MAIN_FOLDERS//,/ }; do 
+    # Root Verzeichnisse loeschen
+    MAIN_PAIRS=$(grep "MAIN_FOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
+    for pair in $MAIN_PAIRS; do
         f=${pair%%:*}
         rm -rf "$HOME/$f"
         sed -i "/$f/d" "$BOOKMARKS" 2>/dev/null
     done
     
-    STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
+    # Standardordner wiederherstellen
+    STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2)
     for f in ${STD_FOLDERS//,/ }; do mkdir -p "$HOME/$f"; done
     
     rm "$HOME/.local/share/applications/xrootmounter.desktop"
@@ -94,7 +94,7 @@ while true; do
     CHOICE=$(zenity --list --title="X-Root Mounter" --width=450 --height=600 \
         --column="Menue" "HDD/SSD/M.2/.. anzeigen" "SSD/M.2 einhaengen" "Konfiguration editieren" \
         "Verzeichnisse modifizieren" "Verzeichnisse loeschen (falls leer)" "Cryptomator" "Insync" \
-        "Uninstall (Soft)" "Uninstall (Vollstaendig)" "Beenden")
+        "Starter-Icon entfernen" "Uninstall (Vollstaendig)" "Beenden")
 
     case $CHOICE in
         "HDD/SSD/M.2/.. anzeigen") gnome-disks & ;;
@@ -110,7 +110,7 @@ while true; do
             fi ;;
         "Cryptomator") flatpak run org.cryptomator.Cryptomator & ;;
         "Insync") insync show & ;;
-        "Uninstall (Soft)") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
+        "Starter-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
         "Uninstall (Vollstaendig)") run_uninstall_full ;;
         "Beenden"|"") rm "$LOCK_FILE"; exit 0 ;;
     esac
