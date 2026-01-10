@@ -1,5 +1,5 @@
 #!/bin/bash
-# xrootmounter.sh - X-Root Konsole
+# xrootmounter.sh - X-Root Konsole (Version 29.0)
 
 LOCK_FILE="/tmp/xrootmounter.lock"
 if [ -e "$LOCK_FILE" ]; then
@@ -70,17 +70,21 @@ run_uninstall_full() {
 
 # --- MENUE ---
 while true; do
-    CHOICE=$(zenity --list --title="X-Root Mounter" --width=500 --height=620 \
+    # Untertitel in kleinerer Schriftart via Pango-Markup
+    SUBTITLE="<span size='small'>In 5 Schritten zum Ziel</span>"
+    
+    CHOICE=$(zenity --list --title="X-Root Mounter" --text="$SUBTITLE" --width=500 --height=650 \
         --column="Menue-Eintraege" \
         "1) HDD/SSD/M.2/.. anzeigen" \
         "2) SSD/M.2 einhaengen" \
         "3) Konfiguration editieren" \
-        "4) Verzeichnisse loeschen (falls leer)" \
-        "5) Verzeichnisse modifizieren" \
-        "6) Starter-Icon entfernen" \
-        " .oooooooooooooooooo" \
-        "Cryptomator" \
-        "Insync" \
+        "4) Verzeichnisse modifizieren" \
+        "5) Starter-Icon entfernen" \
+        "oooooooooooooooooo" \
+        "Cryptomator starten" \
+        "Insync starten" \
+        "oooooooooooooooooo" \
+        "Verzeichnisse loeschen (falls leer)" \
         "Uninstall (Vollstaendig)" \
         "Beenden")
 
@@ -88,12 +92,12 @@ while true; do
         "1) HDD/SSD/M.2/.. anzeigen") gnome-disks & ;;
         "2) SSD/M.2 einhaengen") run_ssd_mount ;;
         "3) Konfiguration editieren") xdg-open "$CONFIG_FILE" ;;
-        "4) Verzeichnisse loeschen (falls leer)") rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"; zenity --info --text="Entfernt." ;;
-        "5) Verzeichnisse modifizieren") run_modify_dirs ;;
-        "6) Starter-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
-        " .oooooooooooooooooo") continue ;;
-        "Cryptomator") flatpak run org.cryptomator.Cryptomator & ;;
-        "Insync") insync show & ;;
+        "4) Verzeichnisse modifizieren") run_modify_dirs ;;
+        "5) Starter-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
+        "oooooooooooooooooo") continue ;;
+        "Cryptomator starten") flatpak run org.cryptomator.Cryptomator & ;;
+        "Insync starten") insync show & ;;
+        "Verzeichnisse loeschen (falls leer)") rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"; zenity --info --text="Entfernt." ;;
         "Uninstall (Vollstaendig)") run_uninstall_full ;;
         "Beenden"|"") rm "$LOCK_FILE"; exit 0 ;;
     esac
