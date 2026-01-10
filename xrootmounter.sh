@@ -1,5 +1,5 @@
 #!/bin/bash
-# xrootmounter.sh - X-Root Konsole (Version 29.0)
+# xrootmounter.sh - X-Root Konsole (Version 30.0)
 
 LOCK_FILE="/tmp/xrootmounter.lock"
 if [ -e "$LOCK_FILE" ]; then
@@ -14,23 +14,6 @@ BOOKMARKS="$HOME/.config/gtk-3.0/bookmarks"
 MOUNT_PATH="/mnt/m2_root"
 
 has_files() { [ -d "$1" ] && [ "$(find "$1" -type f | wc -l)" -gt 0 ]; }
-
-run_ssd_mount() {
-    if mountpoint -q "$MOUNT_PATH"; then
-        zenity --info --title="Information" --text="Der Storage ist bereits unter $MOUNT_PATH eingebunden."
-        return
-    fi
-    DEVICES=$(lsblk -p -rn -o NAME,SIZE,TYPE,UUID | awk '$3=="part" {print $1 "|" $2 "|" $4}')
-    CHOICE_ROW=$(echo "$DEVICES" | tr '|' '\n' | zenity --list --title="Partition waehlen" --column="Pfad" --column="Groesse" --column="UUID" --width=600 --height=400)
-    [ -z "$CHOICE_ROW" ] && return
-    SEL_UUID=$(echo "$CHOICE_ROW" | awk '{print $NF}')
-    sed -i "s|^UUID=.*|UUID=$SEL_UUID|" "$CONFIG_FILE"
-    sudo mkdir -p "$MOUNT_PATH"
-    FSTAB_LINE="UUID=$SEL_UUID $MOUNT_PATH ntfs-3g defaults,uid=$(id -u),gid=$(id -g),umask=007 0 2"
-    grep -q "$SEL_UUID" /etc/fstab || echo "$FSTAB_LINE" | sudo tee -a /etc/fstab
-    sudo mount -a
-    zenity --info --text="Storage wurde dauerhaft (persistent) eingebunden!"
-}
 
 run_modify_dirs() {
     PAIRS=$(grep "MAIN_FOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
@@ -56,21 +39,8 @@ run_modify_dirs() {
     zenity --info --text="$MOD_LOG\nSeitenleiste wurde aktualisiert."
 }
 
-run_uninstall_full() {
-    zenity --question --title="Vollstaendiger Uninstall" --text="Wollen Sie wirklich alles entfernen? Die Standardordner werden wiederhergestellt." || return
-    sudo umount "$MOUNT_PATH" 2>/dev/null
-    sudo sed -i "\|$MOUNT_PATH|d" /etc/fstab
-    sudo rm -f /etc/modprobe.d/disable-usb-autosuspend.conf
-    rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"
-    mkdir -p "$HOME"/{Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich}
-    xdg-user-dirs-update --force
-    rm "$HOME/.local/share/applications/xrootmounter.desktop"
-    rm "$LOCK_FILE"; exit 0
-}
-
 # --- MENUE ---
 while true; do
-    # Untertitel in kleinerer Schriftart via Pango-Markup
     SUBTITLE="<span size='small'>In 5 Schritten zum Ziel</span>"
     
     CHOICE=$(zenity --list --title="X-Root Mounter" --text="$SUBTITLE" --width=500 --height=650 \
@@ -80,25 +50,47 @@ while true; do
         "3) Konfiguration editieren" \
         "4) Verzeichnisse modifizieren" \
         "5) Starter-Icon entfernen" \
-        "oooooooooooooooooo" \
+        "ooo" \
         "Cryptomator starten" \
         "Insync starten" \
-        "oooooooooooooooooo" \
+        "ooo" \
         "Verzeichnisse loeschen (falls leer)" \
         "Uninstall (Vollstaendig)" \
         "Beenden")
 
     case $CHOICE in
         "1) HDD/SSD/M.2/.. anzeigen") gnome-disks & ;;
-        "2) SSD/M.2 einhaengen") run_ssd_mount ;;
+        "2) SSD/M.2 einhaengen") 
+            if mountpoint -q "$MOUNT_PATH"; then zenity --info --text="Bereits aktiv."; else
+                DEVICES=$(lsblk -p -rn -o NAME,SIZE,TYPE,UUID | awk '$3=="part" {print $1 "|" $2 "|" $4}')
+                CHOICE_ROW=$(echo "$DEVICES" | tr '|' '\n' | zenity --list --title="Partition waehlen" --column="Pfad" --column="Groesse" --column="UUID" --width=600 --height=400)
+                [ ! -z "$CHOICE_ROW" ] && SEL_UUID=$(echo "$CHOICE_ROW" | awk '{print $NF}') && \
+                sed -i "s|^UUID=.*|UUID=$SEL_UUID|" "$CONFIG_FILE" && sudo mkdir -p "$MOUNT_PATH" && \
+                sudo mount -a && zenity --info --text="Eingebunden!"
+            fi ;;
         "3) Konfiguration editieren") xdg-open "$CONFIG_FILE" ;;
         "4) Verzeichnisse modifizieren") run_modify_dirs ;;
         "5) Starter-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
-        "oooooooooooooooooo") continue ;;
+        "ooo") continue ;;
         "Cryptomator starten") flatpak run org.cryptomator.Cryptomator & ;;
-        "Insync starten") insync show & ;;
+        "Insync starten") 
+            # Robuster Start: Startet den Dienst falls nicht aktiv und oeffnet das Fenster
+            insync start 2>/dev/null
+            sleep 1
+            insync show & 
+            ;;
         "Verzeichnisse loeschen (falls leer)") rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"; zenity --info --text="Entfernt." ;;
-        "Uninstall (Vollstaendig)") run_uninstall_full ;;
+        "Uninstall (Vollstaendig)") 
+            zenity --question --title="Vollstaendiger Uninstall" --text="Wirklich alles entfernen?" && {
+                sudo umount "$MOUNT_PATH" 2>/dev/null
+                sudo sed -i "\|$MOUNT_PATH|d" /etc/fstab
+                sudo rm -f /etc/modprobe.d/disable-usb-autosuspend.conf
+                rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"
+                mkdir -p "$HOME"/{Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich}
+                xdg-user-dirs-update --force
+                rm "$HOME/.local/share/applications/xrootmounter.desktop"
+                exit 0
+            } ;;
         "Beenden"|"") rm "$LOCK_FILE"; exit 0 ;;
     esac
 done
