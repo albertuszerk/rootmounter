@@ -1,5 +1,5 @@
 #!/bin/bash
-# xrootmounter.sh - X-Root Konsole (Version 18.0)
+# xrootmounter.sh - X-Root Konsole
 
 LOCK_FILE="/tmp/xrootmounter.lock"
 [ -e "$LOCK_FILE" ] && PID=$(cat "$LOCK_FILE") && ps -p $PID > /dev/null && exit 0
@@ -8,8 +8,28 @@ echo $$ > "$LOCK_FILE"
 CONFIG_FILE="$HOME/.config/rootmounter/config.ini"
 BOOKMARKS="$HOME/.config/gtk-3.0/bookmarks"
 
-# Prüft, ob ein Verzeichnis Dateien enthält
 has_files() { [ -d "$1" ] && [ "$(find "$1" -type f | wc -l)" -gt 0 ]; }
+
+run_ssd_mount() {
+    # 1. Auswahl laden
+    DEVICES=$(lsblk -p -rn -o NAME,SIZE,TYPE,UUID | awk '$3=="part" {print $1 "|" $2 "|" $4}')
+    [ -z "$DEVICES" ] && { zenity --error --text="Keine Partitionen gefunden!"; return; }
+
+    CHOICE_ROW=$(echo "$DEVICES" | tr '|' '\n' | zenity --list --title="Partition waehlen" --column="Pfad" --column="Groesse" --column="UUID" --width=600 --height=400)
+    
+    # 2. Abbruch pruefen
+    [ -z "$CHOICE_ROW" ] && return
+    SEL_UUID=$(echo "$CHOICE_ROW" | awk '{print $NF}')
+    [ -z "$SEL_UUID" ] && return
+    
+    # 3. Speichern und Mounten
+    sed -i "s|^UUID=.*|UUID=$SEL_UUID|" "$CONFIG_FILE"
+    sudo mkdir -p /mnt/m2_root
+    FSTAB_LINE="UUID=$SEL_UUID /mnt/m2_root ntfs-3g defaults,uid=$(id -u),gid=$(id -g),umask=007 0 2"
+    grep -q "$SEL_UUID" /etc/fstab || echo "$FSTAB_LINE" | sudo tee -a /etc/fstab
+    sudo mount -a
+    zenity --info --text="Storage wurde dauerhaft (persistent) eingebunden!"
+}
 
 run_modify_dirs() {
     PAIRS=$(grep "MAIN_FOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
@@ -34,7 +54,6 @@ run_modify_dirs() {
     REMOVED_LOG=""
     for f in ${STD_FOLDERS//,/ }; do
         TARGET_DIR="$HOME/$f"
-        # Wir loeschen nur, wenn der Ordner existiert und wirklich leer ist
         if [ -d "$TARGET_DIR" ] && ! has_files "$TARGET_DIR"; then 
             rm -rf "$TARGET_DIR"
             sed -i "/$f/d" "$BOOKMARKS" 2>/dev/null
@@ -43,7 +62,7 @@ run_modify_dirs() {
     done
 
     nautilus -q
-    zenity --info --title="Erfolg" --text="$MOD_LOG\nGELOESCHT (da leer):\n${REMOVED_LOG:-keine}\n\nHINWEIS: Seitenleiste aktualisiert."
+    zenity --info --title="Erfolg" --text="$MOD_LOG\nGELOESCHT (da leer):\n${REMOVED_LOG:-keine}"
 }
 
 # --- MENUE ---
@@ -51,30 +70,26 @@ while true; do
     CHOICE=$(zenity --list --title="X-Root Mounter" --width=450 --height=600 \
         --column="Menue" "HDD/SSD/M.2/.. anzeigen" "SSD/M.2 einhaengen" "Konfiguration editieren" \
         "Verzeichnisse modifizieren" "Verzeichnisse loeschen (falls leer)" "Cryptomator" "Insync" \
-        "Menue-Icon entfernen" "Uninstall (Vollstaendig)" "Beenden")
+        "Starter-Icon entfernen" "Uninstall (Vollstaendig)" "Beenden")
 
     case $CHOICE in
         "HDD/SSD/M.2/.. anzeigen") gnome-disks & ;;
-        "SSD/M.2 einhaengen") # (Mount-Logik einbauen) 
-            zenity --info --text="Storage persistent eingebunden!" ;;
+        "SSD/M.2 einhaengen") run_ssd_mount ;;
         "Konfiguration editieren") xdg-open "$CONFIG_FILE" ;;
         "Verzeichnisse modifizieren") run_modify_dirs ;;
         "Verzeichnisse loeschen (falls leer)") 
-            if has_files "$HOME/root" || has_files "$HOME/workspace"; then
-                zenity --error --text="Abbruch: Ordner enthalten noch Dateien!"
-            else
-                rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"
-                zenity --info --text="Strukturen entfernt."
-            fi ;;
+            zenity --question --text="Wollen Sie die root/workspace Ordner wirklich entfernen?" && rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2" ;;
         "Cryptomator") flatpak run org.cryptomator.Cryptomator & ;;
         "Insync") insync show & ;;
-        "Menue-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
+        "Starter-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
         "Uninstall (Vollstaendig)") 
-            sudo umount /mnt/m2_root 2>/dev/null
-            sudo sed -i '/m2_root/d' /etc/fstab
-            rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"
-            rm "$HOME/.local/share/applications/xrootmounter.desktop"
-            exit 0 ;;
+            zenity --question --title="Vollstaendiger Uninstall" --text="Wollen Sie wirklich alles restlos entfernen?" && {
+                sudo umount /mnt/m2_root 2>/dev/null
+                sudo sed -i '/m2_root/d' /etc/fstab
+                rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"
+                rm "$HOME/.local/share/applications/xrootmounter.desktop"
+                exit 0
+            } ;;
         "Beenden"|"") rm "$LOCK_FILE"; exit 0 ;;
     esac
 done
