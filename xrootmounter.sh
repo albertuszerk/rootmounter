@@ -1,5 +1,5 @@
 #!/bin/bash
-# xrootmounter.sh - X-Root Konsole
+# xrootmounter.sh - X-Root Konsole (Version 20.0)
 
 LOCK_FILE="/tmp/xrootmounter.lock"
 [ -e "$LOCK_FILE" ] && PID=$(cat "$LOCK_FILE") && ps -p $PID > /dev/null && exit 0
@@ -11,18 +11,14 @@ BOOKMARKS="$HOME/.config/gtk-3.0/bookmarks"
 has_files() { [ -d "$1" ] && [ "$(find "$1" -type f | wc -l)" -gt 0 ]; }
 
 run_ssd_mount() {
-    # 1. Auswahl laden
+    # Partitionswahl erzwingen
     DEVICES=$(lsblk -p -rn -o NAME,SIZE,TYPE,UUID | awk '$3=="part" {print $1 "|" $2 "|" $4}')
-    [ -z "$DEVICES" ] && { zenity --error --text="Keine Partitionen gefunden!"; return; }
-
     CHOICE_ROW=$(echo "$DEVICES" | tr '|' '\n' | zenity --list --title="Partition waehlen" --column="Pfad" --column="Groesse" --column="UUID" --width=600 --height=400)
     
-    # 2. Abbruch pruefen
     [ -z "$CHOICE_ROW" ] && return
     SEL_UUID=$(echo "$CHOICE_ROW" | awk '{print $NF}')
     [ -z "$SEL_UUID" ] && return
     
-    # 3. Speichern und Mounten
     sed -i "s|^UUID=.*|UUID=$SEL_UUID|" "$CONFIG_FILE"
     sudo mkdir -p /mnt/m2_root
     FSTAB_LINE="UUID=$SEL_UUID /mnt/m2_root ntfs-3g defaults,uid=$(id -u),gid=$(id -g),umask=007 0 2"
@@ -38,8 +34,6 @@ run_modify_dirs() {
     for pair in $PAIRS; do
         folder=${pair%%:*}
         color=${pair##*:}
-        [ "$folder" == "$color" ] && color="grey"
-
         mkdir -p "$HOME/$folder"
         gio set -t string "$HOME/$folder" metadata::custom-icon-name "folder-$color" 2>/dev/null
         grep -q "file://$HOME/$folder" "$BOOKMARKS" || echo "file://$HOME/$folder $folder" >> "$BOOKMARKS"
@@ -53,9 +47,8 @@ run_modify_dirs() {
     STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2)
     REMOVED_LOG=""
     for f in ${STD_FOLDERS//,/ }; do
-        TARGET_DIR="$HOME/$f"
-        if [ -d "$TARGET_DIR" ] && ! has_files "$TARGET_DIR"; then 
-            rm -rf "$TARGET_DIR"
+        if [ -d "$HOME/$f" ] && ! has_files "$HOME/$f"; then 
+            rm -rf "$HOME/$f"
             sed -i "/$f/d" "$BOOKMARKS" 2>/dev/null
             REMOVED_LOG="$REMOVED_LOG- $f\n"
         fi
@@ -70,7 +63,7 @@ while true; do
     CHOICE=$(zenity --list --title="X-Root Mounter" --width=450 --height=600 \
         --column="Menue" "HDD/SSD/M.2/.. anzeigen" "SSD/M.2 einhaengen" "Konfiguration editieren" \
         "Verzeichnisse modifizieren" "Verzeichnisse loeschen (falls leer)" "Cryptomator" "Insync" \
-        "Starter-Icon entfernen" "Uninstall (Vollstaendig)" "Beenden")
+        "Menue-Icon entfernen" "Uninstall (Vollstaendig)" "Beenden")
 
     case $CHOICE in
         "HDD/SSD/M.2/.. anzeigen") gnome-disks & ;;
@@ -78,10 +71,10 @@ while true; do
         "Konfiguration editieren") xdg-open "$CONFIG_FILE" ;;
         "Verzeichnisse modifizieren") run_modify_dirs ;;
         "Verzeichnisse loeschen (falls leer)") 
-            zenity --question --text="Wollen Sie die root/workspace Ordner wirklich entfernen?" && rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2" ;;
+            zenity --question --text="Strukturen root/workspace/workspace2 wirklich entfernen?" && rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2" ;;
         "Cryptomator") flatpak run org.cryptomator.Cryptomator & ;;
         "Insync") insync show & ;;
-        "Starter-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
+        "Menue-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
         "Uninstall (Vollstaendig)") 
             zenity --question --title="Vollstaendiger Uninstall" --text="Wollen Sie wirklich alles restlos entfernen?" && {
                 sudo umount /mnt/m2_root 2>/dev/null
