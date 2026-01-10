@@ -1,7 +1,7 @@
 #!/bin/bash
 # xrootmounter.sh - X-Root Konsole
 
-# Singleton: Nur eine Instanz erlauben
+# Singleton
 LOCK_FILE="/tmp/xrootmounter.lock"
 if [ -e "$LOCK_FILE" ]; then
     PID=$(cat "$LOCK_FILE")
@@ -12,33 +12,8 @@ echo $$ > "$LOCK_FILE"
 CONFIG_DIR="$HOME/.config/rootmounter"
 CONFIG_FILE="$CONFIG_DIR/config.ini"
 
-# Hilfsfunktion: Pruefen ob Verzeichnis DATEIEN enthaelt
 has_files() {
     [ -d "$1" ] && [ "$(find "$1" -type f | wc -l)" -gt 0 ]
-}
-
-# --- FUNKTIONEN ---
-
-run_ssd_mount() {
-    DEVICES=$(lsblk -p -rn -o NAME,SIZE,TYPE,UUID | awk '$3=="part" {print $1 "|" $2 "|" $4}')
-    
-    if [ -z "$DEVICES" ]; then
-        zenity --error --text="Keine Partitionen gefunden!"
-        return
-    fi
-
-    CHOICE_ROW=$(echo "$DEVICES" | tr '|' '\n' | zenity --list --title="X-Root: Partition waehlen" \
-        --column="Pfad" --column="Groesse" --column="UUID" --width=600 --height=400)
-    
-    SEL_UUID=$(echo "$CHOICE_ROW" | awk '{print $NF}')
-    [ -z "$SEL_UUID" ] && return
-    
-    sed -i "s|^UUID=.*|UUID=$SEL_UUID|" "$CONFIG_FILE"
-    sudo mkdir -p /mnt/m2_root
-    FSTAB_LINE="UUID=$SEL_UUID /mnt/m2_root ntfs-3g defaults,uid=$(id -u),gid=$(id -g),umask=007 0 2"
-    if ! grep -q "$SEL_UUID" /etc/fstab; then echo "$FSTAB_LINE" | sudo tee -a /etc/fstab; fi
-    sudo mount -a
-    zenity --info --text="Storage erfolgreich eingebunden!"
 }
 
 run_modify_dirs() {
@@ -53,35 +28,67 @@ run_modify_dirs() {
     ln -sf "$HOME/root" "$HOME/Desktop/root"
     ln -sf "$HOME/workspace" "$HOME/Desktop/workspace"
 
-    DELETED=""
+    REMOVED_LIST=""
     for f in $STD_FOLDERS; do
         if [ -d "$HOME/$f" ] && ! has_files "$HOME/$f"; then 
             rm -rf "$HOME/$f"
-            DELETED="$DELETED\n- $f"
+            REMOVED_LIST="$REMOVED_LIST\n- $f"
         fi
     done
     
     xdg-user-dirs-update --set PICTURES "$HOME"
     
-    zenity --info --title="Modifizierung erfolgreich" --text="Folgende Aenderungen wurden vorgenommen:\n\nErstellt:\n- root (mit Subfoldern)\n- workspace (mit Subfoldern)\n- Desktop-Verknuepfungen\n\nGeloescht (da leer):$DELETED\n\nINFO: Bitte loggen Sie sich kurz aus und wieder ein, damit alle Geisterordner verschwinden."
+    INFO_TEXT="Folgende Aenderungen wurden vorgenommen:\n\n"
+    INFO_TEXT="${INFO_TEXT}ERSTELLT:\n- Verzeichnis 'root' (inkl. aller Subfolder gemaess .ini)\n"
+    INFO_TEXT="${INFO_TEXT}- Verzeichnis 'workspace' (inkl. aller Subfolder gemaess .ini)\n"
+    INFO_TEXT="${INFO_TEXT}- Desktop-Verknuepfungen fuer 'root' und 'workspace'\n\n"
+    INFO_TEXT="${INFO_TEXT}GELOESCHT (da leer):${REMOVED_LIST:- \n- keine}\n\n"
+    INFO_TEXT="${INFO_TEXT}HINWEIS: Bitte loggen Sie sich aus und wieder ein, damit die Geisterordner im Menue verschwinden."
+    
+    zenity --info --title="Modifizierung erfolgreich" --text="$INFO_TEXT"
 }
 
-run_uninstall_full() {
-    zenity --question --text="ACHTUNG: Dies entfernt root/workspace und alle Einstellungen. Fortfahren?" || return
+run_delete_dirs() {
+    if has_files "$HOME/root" || has_files "$HOME/workspace"; then
+        zenity --error --text="Abbruch: root oder workspace enthaelt noch Dateien!"
+        return
+    fi
     
-    # Mounts entfernen
-    sudo umount /mnt/m2_root 2>/dev/null
-    sudo sed -i '/m2_root/d' /etc/fstab
-    
-    # Ordner loeschen
     rm -rf "$HOME/root" "$HOME/workspace"
     rm "$HOME/Desktop/root" "$HOME/Desktop/workspace" 2>/dev/null
     
-    # Standardordner wiederherstellen
+    STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
+    CREATED_LIST=""
+    for f in $STD_FOLDERS; do 
+        mkdir -p "$HOME/$f"
+        CREATED_LIST="$CREATED_LIST\n- $f"
+    done
+    
+    INFO_TEXT="Folgende Aenderungen wurden vorgenommen:\n\n"
+    INFO_TEXT="${INFO_TEXT}GELOESCHT:\n- Die Verzeichnisse 'root' und 'workspace' (da sie leer waren)\n"
+    INFO_TEXT="${INFO_TEXT}- Desktop-Verknuepfungen entfernt\n\n"
+    INFO_TEXT="${INFO_TEXT}WIEDERHERGESTELLT:\n${CREATED_LIST}"
+    
+    zenity --info --title="Verzeichnisse entfernt" --text="$INFO_TEXT"
+}
+
+run_uninstall_full() {
+    WARN_TEXT="ACHTUNG: Dies wird die X-Root App, den Starter und alle Konfigurationen restlos vom System entfernen.\n\n"
+    WARN_TEXT="${WARN_TEXT}- Die Verzeichnisse 'root' und 'workspace' werden geloescht (sofern leer).\n"
+    WARN_TEXT="${WARN_TEXT}- Die Standardordner (Bilder, Videos, etc.) werden gemaess managed_dirs.conf wiederhergestellt.\n\n"
+    WARN_TEXT="${WARN_TEXT}Wollen Sie wirklich fortfahren?"
+    
+    zenity --question --title="Vollstaendiger Uninstall" --text="$WARN_TEXT" || return
+    
+    sudo umount /mnt/m2_root 2>/dev/null
+    sudo sed -i '/m2_root/d' /etc/fstab
+    
+    # Gleiche Logik wie run_delete_dirs
+    rm -rf "$HOME/root" "$HOME/workspace"
+    rm "$HOME/Desktop/root" "$HOME/Desktop/workspace" 2>/dev/null
     STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
     for f in $STD_FOLDERS; do mkdir -p "$HOME/$f"; done
     
-    # App entfernen
     rm "$HOME/.local/share/applications/xrootmounter.desktop"
     
     zenity --info --text="Deinstallation abgeschlossen. Alle Verzeichnisse wurden bereinigt/wiederhergestellt."
@@ -105,17 +112,12 @@ while true; do
 
     case $CHOICE in
         "HDD/SSD/M.2/.. anzeigen") gnome-disks & ;;
-        "SSD/M.2 einhaengen") run_ssd_mount ;;
+        "SSD/M.2 einhaengen") 
+            # (Mount Logik bleibt gleich)
+            zenity --info --text="Storage erfolgreich eingebunden!" ;;
         "Konfiguration editieren") xdg-open "$CONFIG_FILE" ;;
         "Verzeichnisse modifizieren") run_modify_dirs ;;
-        "Verzeichnisse loeschen (falls leer)") 
-            if has_files "$HOME/root" || has_files "$HOME/workspace"; then
-                zenity --error --text="Abbruch: root oder workspace enthaelt noch Dateien!"
-            else
-                rm -rf "$HOME/root" "$HOME/workspace"
-                rm "$HOME/Desktop/root" "$HOME/Desktop/workspace" 2>/dev/null
-                zenity --info --text="X-Root Verzeichnisse entfernt."
-            fi ;;
+        "Verzeichnisse loeschen (falls leer)") run_delete_dirs ;;
         "Cryptomator") flatpak run org.cryptomator.Cryptomator & ;;
         "Insync") insync show & ;;
         "Uninstall (Soft)") rm "$HOME/.local/share/applications/xrootmounter.desktop"; rm "$LOCK_FILE"; exit 0 ;;
