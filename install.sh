@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - X-Root Mounter Setup (Version 28.0)
+# install.sh - X-Root Mounter Setup (Version 29.0)
 
 LOGFILE="/tmp/xroot_install.log"
 rm -f "$LOGFILE"
@@ -17,7 +17,7 @@ BIN_DIR="$USER_HOME/.local/bin"
 CONFIG_DIR="$USER_HOME/.config/rootmounter"
 REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
 
-# 2. USB-Autosuspend deaktivieren (Stabile SSD-Verbindung)
+# 2. USB-Autosuspend deaktivieren (Dein genialer Hinweis!)
 echo "Deaktiviere USB-Autosuspend..."
 sudo mkdir -p /etc/modprobe.d/
 echo "options usbcore autosuspend=-1" | sudo tee /etc/modprobe.d/disable-usb-autosuspend.conf > /dev/null
