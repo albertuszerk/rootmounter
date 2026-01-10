@@ -12,6 +12,7 @@ MOUNT_PATH="/mnt/m2_root"
 has_files() { [ -d "$1" ] && [ "$(find "$1" -type f | wc -l)" -gt 0 ]; }
 
 run_ssd_mount() {
+    # Sicherheitsabfrage vor dem Einhaengen
     if mountpoint -q "$MOUNT_PATH"; then
         zenity --info --title="Information" --text="Der Storage ist bereits unter $MOUNT_PATH eingebunden."
         return
@@ -40,8 +41,8 @@ run_uninstall_full() {
     # Root Ordner loeschen
     rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"
     
-    # Standardordner wiederherstellen & XDG Pfade resetten
-    mkdir -p "$HOME/Bilder" "$HOME/Videos" "$HOME/Musik" "$HOME/Dokumente" "$HOME/Vorlagen" "$HOME/Oeffentlich"
+    # Standardordner physisch wiederherstellen & Pfade resetten
+    mkdir -p "$HOME"/{Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich}
     
     cat <<EOF > "$HOME/.config/user-dirs.dirs"
 XDG_DESKTOP_DIR="\$HOME/Schreibtisch"
@@ -56,7 +57,7 @@ EOF
     
     rm "$HOME/.local/share/applications/xrootmounter.desktop"
     xdg-user-dirs-update --force
-    zenity --info --text="Deinstallation abgeschlossen. System wurde bereinigt."
+    zenity --info --text="Deinstallation abgeschlossen. Alle Standardordner wurden wiederhergestellt."
     rm "$LOCK_FILE"; exit 0
 }
 
