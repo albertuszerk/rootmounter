@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Setup fuer X-Root Mounter (Version 10.0)
+# install.sh - Setup fuer X-Root Mounter
 
 LOGFILE="/tmp/xroot_install.log"
 rm -f "$LOGFILE"
@@ -9,53 +9,48 @@ if [[ "$*" == *"--log"* ]]; then
     echo "--- LOG START: $(date) ---"
 fi
 
-zenity --question --title="X-Root Installation" --text="Wollen Sie mit der Installation von X-Root Mounter fortfahren?" || exit 0
+zenity --question --title="X-Root Installation" --text="Wollen Sie mit der Installation fortfahren?" || exit 0
 
-USER_NAME=$(id -un)
-USER_HOME=$(eval echo ~$USER_NAME)
+USER_HOME=$HOME
 BIN_DIR="$USER_HOME/.local/bin"
 CONFIG_DIR="$USER_HOME/.config/rootmounter"
 REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
 
-# System-Basis aus Log erkannt: noble
-CODENAME="noble"
+# 1. Software & GPG Fix (Speziell fuer Ubuntu Noble)
+sudo apt update
+sudo apt install -y flatpak curl zenity xdg-user-dirs gpg
 
-# 1. Software & Manueller GPG-Import fuer Insync
-sudo apt-get update
-sudo apt-get install -y flatpak curl zenity xdg-user-dirs software-properties-common gpg wget
+# Insync Schluessel-Fix
+sudo mkdir -p /usr/share/keyrings
+sudo curl -sL https://auth.insync.io/keys/insync.asc | sudo gpg --dearmor --yes -o /usr/share/keyrings/insync-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/insync-archive-keyring.gpg] http://apt.insync.io/ubuntu noble non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
 
-# Cryptomator
-flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+sudo apt update
+sudo apt install -y insync
 flatpak install -y flathub org.cryptomator.Cryptomator
 
-# Insync Fix: Direkter Download des Keys via wget (umgeht dirmngr Fehler)
-sudo mkdir -p /etc/apt/keyrings
-wget -qO - https://auth.insync.io/keys/insync.asc | sudo gpg --dearmor -o /etc/apt/keyrings/insync.gpg
-echo "deb [signed-by=/etc/apt/keyrings/insync.gpg] http://apt.insync.io/ubuntu $CODENAME non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
-
-sudo apt-get update
-sudo apt-get install -y insync
-
-# 2. Skripte & Config
+# 2. Skripte laden
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
 curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
 
-# Standard-Config
-if [ ! -f "$CONFIG_DIR/config.ini" ]; then
+# 3. Flexible Config (History-Support vorbereiten)
 cat <<EOF > "$CONFIG_DIR/config.ini"
 [Hardware]
 UUID=UNBEKANNT
 MOUNT_POINT=/mnt/m2_root
 [StandardFolders]
 NAMES=Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich
-[Structure]
-ROOT_SUBFOLDERS=backup,client,clientpic,clientshare1,control,db,document,gallery,project,replicate,shareprg,softinst,softinst-shared,temp,template,web,whitepaper
-WORKSPACE_SUBFOLDERS=user-backup,user-control,user-db,user-document,user-download,user-favorites,user-gallery,user-template,user-web
+[Roots]
+# Hier kannst du beliebig viele Hauptordner definieren
+MAIN_FOLDERS=root,workspace,workspace2
+[Subfolders]
+root=backup,client,clientpic,control,db,document,project,web
+workspace=user-backup,user-control,user-db,user-document
+workspace2=test1,test2,test3
 EOF
-fi
 
-# 3. Starter
+# 4. Starter erstellen
 cat <<EOF > "$USER_HOME/.local/share/applications/xrootmounter.desktop"
 [Desktop Entry]
 Name=X-Root Mounter
@@ -68,9 +63,6 @@ EOF
 
 update-desktop-database "$USER_HOME/.local/share/applications"
 
-if [[ "$*" == *"--log"* ]]; then
-    zenity --info --text="Installation beendet. Log wird geoeffnet."
-    xdg-open "$LOGFILE"
-fi
-
+# Log oeffnen falls angefordert
+[[ "$*" == *"--log"* ]] && xdg-open "$LOGFILE"
 "$BIN_DIR/xrootmounter" &
