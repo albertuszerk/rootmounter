@@ -1,6 +1,7 @@
 #!/bin/bash
-# xrootmounter.sh - Management Konsole
+# xrootmounter.sh - X-Root Konsole
 
+# Singleton
 LOCK_FILE="/tmp/xrootmounter.lock"
 [ -e "$LOCK_FILE" ] && PID=$(cat "$LOCK_FILE") && ps -p $PID > /dev/null && exit 0
 echo $$ > "$LOCK_FILE"
@@ -9,6 +10,26 @@ CONFIG_FILE="$HOME/.config/rootmounter/config.ini"
 BOOKMARKS="$HOME/.config/gtk-3.0/bookmarks"
 
 has_files() { [ -d "$1" ] && [ "$(find "$1" -type f | wc -l)" -gt 0 ]; }
+
+run_ssd_mount() {
+    DEVICES=$(lsblk -p -rn -o NAME,SIZE,TYPE,UUID | awk '$3=="part" {print $1 "|" $2 "|" $4}')
+    [ -z "$DEVICES" ] && { zenity --error --text="Keine Partitionen gefunden!"; return; }
+
+    CHOICE_ROW=$(echo "$DEVICES" | tr '|' '\n' | zenity --list --title="Partition waehlen" --column="Pfad" --column="Groesse" --column="UUID" --width=600 --height=400)
+    
+    # WICHTIG: Wenn der Nutzer abbricht, hier beenden!
+    [ -z "$CHOICE_ROW" ] && return
+    
+    SEL_UUID=$(echo "$CHOICE_ROW" | awk '{print $NF}')
+    [ -z "$SEL_UUID" ] && return
+    
+    sed -i "s|^UUID=.*|UUID=$SEL_UUID|" "$CONFIG_FILE"
+    sudo mkdir -p /mnt/m2_root
+    FSTAB_LINE="UUID=$SEL_UUID /mnt/m2_root ntfs-3g defaults,uid=$(id -u),gid=$(id -g),umask=007 0 2"
+    grep -q "$SEL_UUID" /etc/fstab || echo "$FSTAB_LINE" | sudo tee -a /etc/fstab
+    sudo mount -a
+    zenity --info --text="Storage wurde dauerhaft (persistent) eingebunden!"
+}
 
 run_modify_dirs() {
     PAIRS=$(grep "MAIN_FOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
@@ -19,10 +40,13 @@ run_modify_dirs() {
         color=$(echo $pair | cut -d':' -f2)
         mkdir -p "$HOME/$folder"
         gio set -t string "$HOME/$folder" metadata::custom-icon-name "folder-$color" 2>/dev/null
+        
+        # Sicherstellen, dass JEDER Root in die Seitenleiste kommt
         grep -q "file://$HOME/$folder" "$BOOKMARKS" || echo "file://$HOME/$folder $folder" >> "$BOOKMARKS"
+        
         SUBS=$(grep "^$folder=" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
         for s in $SUBS; do mkdir -p "$HOME/$folder/$s"; done
-        MOD_LOG="$MOD_LOG- $folder (Farbe: $color, inklusive Subfolder)\n"
+        MOD_LOG="$MOD_LOG- $folder (Farbe: $color)\n"
     done
 
     # Standardordner entfernen
@@ -37,41 +61,7 @@ run_modify_dirs() {
     done
 
     nautilus -q
-    zenity --info --title="Modifizierung erfolgreich" --text="$MOD_LOG\nGELOESCHT (da leer):\n${REMOVED_LOG:-keine}\n\nHINWEIS: Die Seitenleiste wurde aktualisiert und Geisterordner entfernt."
-}
-
-run_delete_dirs() {
-    MAIN_PAIRS=$(grep "MAIN_FOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
-    GELOESCHT=""
-    
-    # Pruefen auf Dateien
-    for pair in $MAIN_PAIRS; do
-        f=$(echo $pair | cut -d':' -f1)
-        if has_files "$HOME/$f"; then zenity --error --text="Abbruch: $f enthaelt noch Dateien!"; return; fi
-    done
-
-    for pair in $MAIN_PAIRS; do
-        f=$(echo $pair | cut -d':' -f1)
-        rm -rf "$HOME/$f"
-        sed -i "/$f/d" "$BOOKMARKS" 2>/dev/null
-        GELOESCHT="$GELOESCHT- $f\n"
-    done
-
-    # Standardordner wiederherstellen
-    STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
-    WIEDER=""
-    for f in $STD_FOLDERS; do mkdir -p "$HOME/$f"; WIEDER="$WIEDER- $f\n"; done
-
-    zenity --info --title="Verzeichnisse entfernt" --text="GELOESCHT:\n$GELOESCHT\nWIEDERHERGESTELLT:\n$WIEDER"
-}
-
-run_uninstall_full() {
-    zenity --question --title="Vollstaendiger Uninstall" --text="ACHTUNG: Dies entfernt die App persistent vom System, loescht root/workspace (wenn leer) und stellt Standardordner wieder her. Fortfahren?" || return
-    sudo umount /mnt/m2_root 2>/dev/null
-    sudo sed -i '/m2_root/d' /etc/fstab
-    run_delete_dirs
-    rm "$HOME/.local/share/applications/xrootmounter.desktop"
-    rm "$LOCK_FILE"; exit 0
+    zenity --info --title="Erfolg" --text="$MOD_LOG\nGELOESCHT (da leer):\n${REMOVED_LOG:-keine}"
 }
 
 # --- MENUE ---
@@ -83,15 +73,15 @@ while true; do
 
     case $CHOICE in
         "HDD/SSD/M.2/.. anzeigen") gnome-disks & ;;
-        "SSD/M.2 einhaengen") # (Mount Logik hier)
-             zenity --info --text="Storage persistent eingebunden!" ;;
+        "SSD/M.2 einhaengen") run_ssd_mount ;;
         "Konfiguration editieren") xdg-open "$CONFIG_FILE" ;;
         "Verzeichnisse modifizieren") run_modify_dirs ;;
-        "Verzeichnisse loeschen (falls leer)") run_delete_dirs ;;
+        "Verzeichnisse loeschen (falls leer)"|"Uninstall (Vollstaendig)") 
+            zenity --question --text="Soll die Struktur entfernt werden?" && rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"
+            [ "$CHOICE" == "Uninstall (Vollstaendig)" ] && { rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0; } ;;
         "Cryptomator") flatpak run org.cryptomator.Cryptomator & ;;
         "Insync") insync show & ;;
         "Uninstall (Soft)") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
-        "Uninstall (Vollstaendig)") run_uninstall_full ;;
-        "Beenden"|"") rm "$LOCK_FILE"; exit 0 ;;
+        "Beenden"|"") exit 0 ;;
     esac
 done
