@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - X-Root Mounter Setup (Version 27.0)
+# install.sh - X-Root Mounter Setup (Version 28.0)
 
 LOGFILE="/tmp/xroot_install.log"
 rm -f "$LOGFILE"
@@ -22,7 +22,7 @@ echo "Deaktiviere USB-Autosuspend..."
 sudo mkdir -p /etc/modprobe.d/
 echo "options usbcore autosuspend=-1" | sudo tee /etc/modprobe.d/disable-usb-autosuspend.conf > /dev/null
 
-# 3. Software Installation (Robust)
+# 3. Software Installation
 sudo apt update
 sudo apt install -y curl gpg wget zenity xdg-user-dirs flatpak
 
@@ -49,7 +49,7 @@ XDG_PICTURES_DIR="\$HIDDEN_BASE/Bilder"
 XDG_VIDEOS_DIR="\$HIDDEN_BASE/Videos"
 EOF
 
-# 5. Skripte laden
+# 5. Skripte & Config
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
 curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
