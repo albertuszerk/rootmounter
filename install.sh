@@ -1,64 +1,48 @@
 #!/bin/bash
-# install.sh - X-Root Mounter Setup (Version 11.0)
+# install.sh - X-Root Mounter Setup (Version 12.0)
 
 LOGFILE="/tmp/xroot_install.log"
-rm -f "$LOGFILE"
+rm -f "$LOGFILE" [cite: 1]
 
 if [[ "$*" == *"--log"* ]]; then
     exec > >(tee -a "$LOGFILE") 2>&1
     echo "--- LOG START: $(date) ---"
 fi
 
-zenity --question --title="X-Root Installation" --text="Wollen Sie mit der Installation fortfahren?" || exit 0
-
+# 1. Desktop-Pfad Fix (Schreibtisch wiederherstellen)
 USER_HOME=$HOME
-BIN_DIR="$USER_HOME/.local/bin"
-CONFIG_DIR="$USER_HOME/.config/rootmounter"
-REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
+mkdir -p "$USER_HOME/Schreibtisch"
+cat <<EOF > "$USER_HOME/.config/user-dirs.dirs"
+XDG_DESKTOP_DIR="\$HOME/Schreibtisch"
+XDG_DOWNLOAD_DIR="\$HOME/Downloads"
+XDG_TEMPLATES_DIR="\$HOME/.local/share/xroot/templates"
+XDG_PUBLICSHARE_DIR="\$HOME/.local/share/xroot/public"
+XDG_DOCUMENTS_DIR="\$HOME/.local/share/xroot/docs"
+XDG_MUSIC_DIR="\$HOME/.local/share/xroot/music"
+XDG_PICTURES_DIR="\$HOME/.local/share/xroot/pics"
+XDG_VIDEOS_DIR="\$HOME/.local/share/xroot/vids"
+EOF
+mkdir -p "$USER_HOME/.local/share/xroot"/{templates,public,docs,music,pics,vids}
 
-# 1. Software & Sicherer Schluessel-Import
+# 2. Software & Insync Schluessel (Sicherer Weg)
 sudo apt update
-sudo apt install -y flatpak curl zenity xdg-user-dirs gpg wget
-
-# Cryptomator via Flatpak
-flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install -y flathub org.cryptomator.Cryptomator
-
-# Insync Schluessel-Fix (2-Stufen Methode)
+sudo apt install -y curl gpg wget [cite: 5, 6]
 echo "Lade Insync Schluessel herunter..."
-sudo mkdir -p /usr/share/keyrings
-curl -L -s -o /tmp/insync.asc https://auth.insync.io/keys/insync.asc
-# Pruefen ob Datei Inhalt hat
+curl -sL https://auth.insync.io/keys/insync.asc > /tmp/insync.asc
 if [ -s /tmp/insync.asc ]; then
     sudo gpg --dearmor --yes -o /usr/share/keyrings/insync-archive-keyring.gpg /tmp/insync.asc
     echo "deb [signed-by=/usr/share/keyrings/insync-archive-keyring.gpg] http://apt.insync.io/ubuntu noble non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
     sudo apt update
     sudo apt install -y insync
-else
-    echo "FEHLER: Insync Schluessel konnte nicht geladen werden."
 fi
 
-# 2. Skripte laden
-mkdir -p "$BIN_DIR" "$CONFIG_DIR"
-curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
+# 3. Skripte laden
+BIN_DIR="$USER_HOME/.local/bin"
+mkdir -p "$BIN_DIR"
+curl -sL "https://raw.githubusercontent.com/albertuszerk/rootmounter/main/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
 
-# 3. Flexible Config
-cat <<EOF > "$CONFIG_DIR/config.ini"
-[Hardware]
-UUID=UNBEKANNT
-MOUNT_POINT=/mnt/m2_root
-[StandardFolders]
-NAMES=Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich
-[Roots]
-MAIN_FOLDERS=root,workspace,workspace2
-[Subfolders]
-root=backup,client,clientpic,control,db,document,project,web
-workspace=user-backup,user-control,user-db,user-document
-workspace2=test1,test2,test3
-EOF
-
-# 4. Starter erstellen
+# 4. Starter
 cat <<EOF > "$USER_HOME/.local/share/applications/xrootmounter.desktop"
 [Desktop Entry]
 Name=X-Root Mounter
@@ -70,6 +54,5 @@ Categories=System;Utility;SystemTools;
 EOF
 
 update-desktop-database "$USER_HOME/.local/share/applications"
-
-[[ "$*" == *"--log"* ]] && xdg-open "$LOGFILE"
+xdg-user-dirs-update
 "$BIN_DIR/xrootmounter" &
