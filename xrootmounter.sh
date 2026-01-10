@@ -13,16 +13,24 @@ CONFIG_FILE="$HOME/.config/rootmounter/config.ini"
 BOOKMARKS="$HOME/.config/gtk-3.0/bookmarks"
 MOUNT_PATH="/mnt/m2_root"
 
-# Status-Check fuer die SSD
-get_ssd_status() {
-    if mountpoint -q "$MOUNT_PATH"; then
-        echo "STATUS: SSD verbunden"
-    else
-        echo "STATUS: SSD nicht aktiv"
-    fi
-}
-
 has_files() { [ -d "$1" ] && [ "$(find "$1" -type f | wc -l)" -gt 0 ]; }
+
+run_ssd_mount() {
+    if mountpoint -q "$MOUNT_PATH"; then
+        zenity --info --title="Information" --text="Der Storage ist bereits unter $MOUNT_PATH eingebunden."
+        return
+    fi
+    DEVICES=$(lsblk -p -rn -o NAME,SIZE,TYPE,UUID | awk '$3=="part" {print $1 "|" $2 "|" $4}')
+    CHOICE_ROW=$(echo "$DEVICES" | tr '|' '\n' | zenity --list --title="Partition waehlen" --column="Pfad" --column="Groesse" --column="UUID" --width=600 --height=400)
+    [ -z "$CHOICE_ROW" ] && return
+    SEL_UUID=$(echo "$CHOICE_ROW" | awk '{print $NF}')
+    sed -i "s|^UUID=.*|UUID=$SEL_UUID|" "$CONFIG_FILE"
+    sudo mkdir -p "$MOUNT_PATH"
+    FSTAB_LINE="UUID=$SEL_UUID $MOUNT_PATH ntfs-3g defaults,uid=$(id -u),gid=$(id -g),umask=007 0 2"
+    grep -q "$SEL_UUID" /etc/fstab || echo "$FSTAB_LINE" | sudo tee -a /etc/fstab
+    sudo mount -a
+    zenity --info --text="Storage wurde dauerhaft (persistent) eingebunden!"
+}
 
 run_modify_dirs() {
     PAIRS=$(grep "MAIN_FOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
@@ -62,16 +70,15 @@ run_uninstall_full() {
 
 # --- MENUE ---
 while true; do
-    SSD_INFO=$(get_ssd_status)
-    CHOICE=$(zenity --list --title="X-Root Mounter | $SSD_INFO" --width=500 --height=620 \
+    CHOICE=$(zenity --list --title="X-Root Mounter" --width=500 --height=620 \
         --column="Menue-Eintraege" \
         "1) HDD/SSD/M.2/.. anzeigen" \
         "2) SSD/M.2 einhaengen" \
         "3) Konfiguration editieren" \
-        "4) Starter-Icon entfernen" \
+        "4) Verzeichnisse loeschen (falls leer)" \
         "5) Verzeichnisse modifizieren" \
-        "6) Verzeichnisse loeschen (falls leer)" \
-        " .--------------------------" \
+        "6) Starter-Icon entfernen" \
+        " .oooooooooooooooooo" \
         "Cryptomator" \
         "Insync" \
         "Uninstall (Vollstaendig)" \
@@ -79,19 +86,12 @@ while true; do
 
     case $CHOICE in
         "1) HDD/SSD/M.2/.. anzeigen") gnome-disks & ;;
-        "2) SSD/M.2 einhaengen") 
-            if mountpoint -q "$MOUNT_PATH"; then zenity --info --text="Bereits aktiv."; else
-                DEVICES=$(lsblk -p -rn -o NAME,SIZE,TYPE,UUID | awk '$3=="part" {print $1 "|" $2 "|" $4}')
-                CHOICE_ROW=$(echo "$DEVICES" | tr '|' '\n' | zenity --list --title="Partition waehlen" --column="Pfad" --column="Groesse" --column="UUID" --width=600 --height=400)
-                [ ! -z "$CHOICE_ROW" ] && SEL_UUID=$(echo "$CHOICE_ROW" | awk '{print $NF}') && \
-                sed -i "s|^UUID=.*|UUID=$SEL_UUID|" "$CONFIG_FILE" && sudo mkdir -p "$MOUNT_PATH" && \
-                sudo mount -a && zenity --info --text="Eingebunden!"
-            fi ;;
+        "2) SSD/M.2 einhaengen") run_ssd_mount ;;
         "3) Konfiguration editieren") xdg-open "$CONFIG_FILE" ;;
-        "4) Starter-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
+        "4) Verzeichnisse loeschen (falls leer)") rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"; zenity --info --text="Entfernt." ;;
         "5) Verzeichnisse modifizieren") run_modify_dirs ;;
-        "6) Verzeichnisse loeschen (falls leer)") rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"; zenity --info --text="Entfernt." ;;
-        " .--------------------------") continue ;;
+        "6) Starter-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
+        " .oooooooooooooooooo") continue ;;
         "Cryptomator") flatpak run org.cryptomator.Cryptomator & ;;
         "Insync") insync show & ;;
         "Uninstall (Vollstaendig)") run_uninstall_full ;;
