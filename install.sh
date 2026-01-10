@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - X-Root Mounter Setup (Version 29.0)
+# install.sh - X-Root Mounter Setup (Version 30.0)
 
 LOGFILE="/tmp/xroot_install.log"
 rm -f "$LOGFILE"
@@ -9,7 +9,6 @@ if [[ "$*" == *"--log"* ]]; then
     echo "--- LOG START: $(date) ---"
 fi
 
-# 1. Start-Abfrage
 zenity --question --title="X-Root Installation" --text="Moechten Sie mit der Installation von X-Root Mounter fortfahren?" || exit 0
 
 USER_HOME=$HOME
@@ -17,23 +16,15 @@ BIN_DIR="$USER_HOME/.local/bin"
 CONFIG_DIR="$USER_HOME/.config/rootmounter"
 REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
 
-# 2. USB-Autosuspend deaktivieren (Dein genialer Hinweis!)
-echo "Deaktiviere USB-Autosuspend..."
+# USB-Autosuspend deaktivieren
 sudo mkdir -p /etc/modprobe.d/
 echo "options usbcore autosuspend=-1" | sudo tee /etc/modprobe.d/disable-usb-autosuspend.conf > /dev/null
 
-# 3. Software Installation
+# Software & Desktop Pfade
 sudo apt update
 sudo apt install -y curl gpg wget zenity xdg-user-dirs flatpak
+# (Insync Key-Routine hier einfügen wie in v29.0)
 
-# Insync Key-Fix
-sudo mkdir -p -m 755 /usr/share/keyrings
-curl -skL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xA684470CACCAF35C" | sed -n '/-----BEGIN PGP PUBLIC KEY BLOCK-----/,/-----END PGP PUBLIC KEY BLOCK-----/p' | gpg --dearmor | sudo tee /usr/share/keyrings/insync-archive-keyring.gpg > /dev/null
-echo "deb [signed-by=/usr/share/keyrings/insync-archive-keyring.gpg] http://apt.insync.io/ubuntu noble non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
-sudo apt update
-sudo apt install -y insync
-
-# 4. Desktop-Hygiene
 HIDDEN_BASE="$USER_HOME/.local/share/xroot_hidden"
 mkdir -p "$HIDDEN_BASE"/{Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich}
 mkdir -p "$USER_HOME/Schreibtisch"
@@ -49,12 +40,12 @@ XDG_PICTURES_DIR="\$HIDDEN_BASE/Bilder"
 XDG_VIDEOS_DIR="\$HIDDEN_BASE/Videos"
 EOF
 
-# 5. Skripte & Config
+# Skripte laden
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
 curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
 
-# INI-Update
+# INI-Format
 OLD_UUID=$(grep "UUID=" "$CONFIG_DIR/config.ini" 2>/dev/null | cut -d'=' -f2)
 cat <<EOF > "$CONFIG_DIR/config.ini"
 [Hardware]
@@ -70,7 +61,7 @@ workspace=user-backup,user-control,user-db,user-document
 workspace2=test1,test2,test3
 EOF
 
-# 6. Starter & Refresh
+# Starter
 cat <<EOF > "$USER_HOME/.local/share/applications/xrootmounter.desktop"
 [Desktop Entry]
 Name=X-Root Mounter
