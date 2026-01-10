@@ -1,5 +1,5 @@
 #!/bin/bash
-# xrootmounter.sh - X-Root Konsole (Version 23.0)
+# xrootmounter.sh - X-Root Konsole
 
 LOCK_FILE="/tmp/xrootmounter.lock"
 [ -e "$LOCK_FILE" ] && PID=$(cat "$LOCK_FILE") && ps -p $PID > /dev/null && exit 0
@@ -12,7 +12,6 @@ MOUNT_PATH="/mnt/m2_root"
 has_files() { [ -d "$1" ] && [ "$(find "$1" -type f | wc -l)" -gt 0 ]; }
 
 run_ssd_mount() {
-    # Sicherheitsabfrage: Ist die SSD bereits gemountet?
     if mountpoint -q "$MOUNT_PATH"; then
         zenity --info --title="Information" --text="Der Storage ist bereits unter $MOUNT_PATH eingebunden."
         return
@@ -41,14 +40,22 @@ run_uninstall_full() {
     # Root Ordner loeschen
     rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"
     
-    # Standardordner physisch wiederherstellen
-    STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2)
-    for f in ${STD_FOLDERS//,/ }; do 
-        mkdir -p "$HOME/$f"
-        xdg-user-dirs-update --set $(echo $f | tr '[:lower:]' '[:upper:]') "$HOME/$f"
-    done
+    # Standardordner wiederherstellen & XDG Pfade resetten
+    mkdir -p "$HOME/Bilder" "$HOME/Videos" "$HOME/Musik" "$HOME/Dokumente" "$HOME/Vorlagen" "$HOME/Oeffentlich"
+    
+    cat <<EOF > "$HOME/.config/user-dirs.dirs"
+XDG_DESKTOP_DIR="\$HOME/Schreibtisch"
+XDG_DOWNLOAD_DIR="\$HOME/Downloads"
+XDG_TEMPLATES_DIR="\$HOME/Vorlagen"
+XDG_PUBLICSHARE_DIR="\$HOME/Oeffentlich"
+XDG_DOCUMENTS_DIR="\$HOME/Dokumente"
+XDG_MUSIC_DIR="\$HOME/Musik"
+XDG_PICTURES_DIR="\$HOME/Bilder"
+XDG_VIDEOS_DIR="\$HOME/Videos"
+EOF
     
     rm "$HOME/.local/share/applications/xrootmounter.desktop"
+    xdg-user-dirs-update --force
     zenity --info --text="Deinstallation abgeschlossen. System wurde bereinigt."
     rm "$LOCK_FILE"; exit 0
 }
@@ -76,7 +83,7 @@ while true; do
         "4) Verzeichnisse modifizieren") run_modify_dirs ;;
         "5) Verzeichnisse loeschen (falls leer)") rm -rf "$HOME/root" "$HOME/workspace" "$HOME/workspace2"; zenity --info --text="Ordner entfernt." ;;
         "6) Starter-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
-        "--------------") continue ;; # Macht nichts bei Klick
+        "--------------") continue ;;
         "Cryptomator") flatpak run org.cryptomator.Cryptomator & ;;
         "Insync") insync show & ;;
         "Uninstall (Vollstaendig)") run_uninstall_full ;;
