@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - X-Root Mounter Setup (Version 23.0)
+# install.sh - X-Root Mounter Setup (Version 24.0)
 
 LOGFILE="/tmp/xroot_install.log"
 rm -f "$LOGFILE"
@@ -17,8 +17,8 @@ BIN_DIR="$USER_HOME/.local/bin"
 CONFIG_DIR="$USER_HOME/.config/rootmounter"
 REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
 
-# 2. USB-Sleep (Autosuspend) deaktivieren
-echo "Deaktiviere USB-Autosuspend fuer stabile SSD-Verbindung..."
+# 2. USB-Sleep (Autosuspend) deaktivieren fuer stabile SSD-Verbindung
+echo "Deaktiviere USB-Autosuspend..."
 sudo mkdir -p /etc/modprobe.d/
 echo "options usbcore autosuspend=-1" | sudo tee /etc/modprobe.d/disable-usb-autosuspend.conf > /dev/null
 
@@ -38,12 +38,28 @@ XDG_PICTURES_DIR="\$HOME/.local/share/xroot_hidden/Bilder"
 XDG_VIDEOS_DIR="\$HOME/.local/share/xroot_hidden/Videos"
 EOF
 
-# 4. Skripte & Config
+# 4. SOFTWARE INSTALLATION (Wieder eingefuegt!)
+echo "Installiere Software-Pakete..."
+sudo apt update
+sudo apt install -y curl gpg wget zenity xdg-user-dirs flatpak
+
+# Insync (Ultra-Robust Methode)
+sudo mkdir -p -m 755 /usr/share/keyrings
+curl -skL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xA684470CACCAF35C" | sed -n '/-----BEGIN PGP PUBLIC KEY BLOCK-----/,/-----END PGP PUBLIC KEY BLOCK-----/p' | gpg --dearmor | sudo tee /usr/share/keyrings/insync-archive-keyring.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/insync-archive-keyring.gpg] http://apt.insync.io/ubuntu noble non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
+sudo apt update
+sudo apt install -y insync
+
+# Cryptomator
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak install -y flathub org.cryptomator.Cryptomator
+
+# 5. Skripte & Config
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
 curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
 
-# INI-Update (History-freundlich)
+# INI-Update
 OLD_UUID=$(grep "UUID=" "$CONFIG_DIR/config.ini" 2>/dev/null | cut -d'=' -f2)
 cat <<EOF > "$CONFIG_DIR/config.ini"
 [Hardware]
@@ -59,7 +75,7 @@ workspace=user-backup,user-control,user-db,user-document
 workspace2=test1,test2,test3
 EOF
 
-# Starter
+# 6. Starter
 cat <<EOF > "$USER_HOME/.local/share/applications/xrootmounter.desktop"
 [Desktop Entry]
 Name=X-Root Mounter
