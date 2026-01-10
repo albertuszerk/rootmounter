@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Setup fuer X-Root Mounter (Version 9.0)
+# install.sh - Setup fuer X-Root Mounter (Version 10.0)
 
 LOGFILE="/tmp/xroot_install.log"
 rm -f "$LOGFILE"
@@ -17,20 +17,20 @@ BIN_DIR="$USER_HOME/.local/bin"
 CONFIG_DIR="$USER_HOME/.config/rootmounter"
 REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
 
-CODENAME=$(lsb_release -cs)
-echo "System-Basis: $CODENAME"
+# System-Basis aus Log erkannt: noble
+CODENAME="noble"
 
-# 1. Software & Robuster GPG-Fix
+# 1. Software & Manueller GPG-Import fuer Insync
 sudo apt-get update
-sudo apt-get install -y flatpak curl zenity xdg-user-dirs software-properties-common gpg
+sudo apt-get install -y flatpak curl zenity xdg-user-dirs software-properties-common gpg wget
 
-# Cryptomator (Flatpak)
+# Cryptomator
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 flatpak install -y flathub org.cryptomator.Cryptomator
 
-# Insync Schluessel-Fix (Gezielter Import des Key ACCAF35C)
+# Insync Fix: Direkter Download des Keys via wget (umgeht dirmngr Fehler)
 sudo mkdir -p /etc/apt/keyrings
-sudo gpg --no-default-keyring --keyring /etc/apt/keyrings/insync.gpg --keyserver keyserver.ubuntu.com --recv-keys ACCAF35C
+wget -qO - https://auth.insync.io/keys/insync.asc | sudo gpg --dearmor -o /etc/apt/keyrings/insync.gpg
 echo "deb [signed-by=/etc/apt/keyrings/insync.gpg] http://apt.insync.io/ubuntu $CODENAME non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
 
 sudo apt-get update
@@ -40,6 +40,20 @@ sudo apt-get install -y insync
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
 curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
+
+# Standard-Config
+if [ ! -f "$CONFIG_DIR/config.ini" ]; then
+cat <<EOF > "$CONFIG_DIR/config.ini"
+[Hardware]
+UUID=UNBEKANNT
+MOUNT_POINT=/mnt/m2_root
+[StandardFolders]
+NAMES=Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich
+[Structure]
+ROOT_SUBFOLDERS=backup,client,clientpic,clientshare1,control,db,document,gallery,project,replicate,shareprg,softinst,softinst-shared,temp,template,web,whitepaper
+WORKSPACE_SUBFOLDERS=user-backup,user-control,user-db,user-document,user-download,user-favorites,user-gallery,user-template,user-web
+EOF
+fi
 
 # 3. Starter
 cat <<EOF > "$USER_HOME/.local/share/applications/xrootmounter.desktop"
