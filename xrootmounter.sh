@@ -1,64 +1,52 @@
 #!/bin/bash
-# xrootmounter.sh - X-Root Management Konsole
+# xrootmounter.sh - X-Root Konsole
 
-CONFIG_DIR="$HOME/.config/rootmounter"
-CONFIG_FILE="$CONFIG_DIR/config.ini"
-USER_HOME=$HOME
+# Singleton: Nur eine Instanz erlauben
+if [[ $(pidof -x "$(basename "$0")" | wc -w) -gt 1 ]]; then
+    exit 0
+fi
 
-# Hilfsfunktion: Pruefen ob Verzeichnis leer ist
-is_empty() {
-    [ -d "$1" ] && [ -z "$(ls -A "$1")" ]
+CONFIG_FILE="$HOME/.config/rootmounter/config.ini"
+
+# Hilfsfunktion: Pruefen ob Verzeichnis DATEIEN enthaelt
+has_files() {
+    [ -d "$1" ] && [ "$(find "$1" -type f | wc -l)" -gt 0 ]
 }
 
-# 1. Verzeichnisse modifizieren (Erstellen & Standardordner entfernen)
 run_modify_dirs() {
-    # X-Root Struktur erstellen
+    STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
     ROOT_SUBS=$(grep "ROOT_SUBFOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
     WORK_SUBS=$(grep "WORKSPACE_SUBFOLDERS" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
-    
-    mkdir -p "$USER_HOME/root" "$USER_HOME/workspace"
-    for s in $ROOT_SUBS; do mkdir -p "$USER_HOME/root/$s"; done
-    for s in $WORK_SUBS; do mkdir -p "$USER_HOME/workspace/$s"; done
-    
-    # Desktop Links
-    ln -sf "$USER_HOME/root" "$USER_HOME/Desktop/root"
-    ln -sf "$USER_HOME/workspace" "$USER_HOME/Desktop/workspace"
 
-    # Standardordner entfernen (NUR WENN LEER)
-    for f in Bilder Videos Musik Dokumente Vorlagen Oeffentlich; do
-        if is_empty "$USER_HOME/$f"; then
-            rm -rf "$USER_HOME/$f"
-        fi
+    mkdir -p "$HOME/root" "$HOME/workspace"
+    for s in $ROOT_SUBS; do mkdir -p "$HOME/root/$s"; done
+    for s in $WORK_SUBS; do mkdir -p "$HOME/workspace/$s"; done
+    
+    ln -sf "$HOME/root" "$HOME/Desktop/root"
+    ln -sf "$HOME/workspace" "$HOME/Desktop/workspace"
+
+    for f in $STD_FOLDERS; do
+        if ! has_files "$HOME/$f"; then rm -rf "$HOME/$f"; fi
     done
-    
-    # Geisterordner in Seitenleiste fixen
-    xdg-user-dirs-update --set PICTURES "$USER_HOME"
-    xdg-user-dirs-update --set VIDEOS "$USER_HOME"
-    
-    zenity --info --text="Verzeichnisse wurden gemaess Konfiguration modifiziert."
+    xdg-user-dirs-update --set PICTURES "$HOME"
+    zenity --info --text="Verzeichnisse wurden modifiziert."
 }
 
-# 2. Verzeichnisse loeschen (Sicherheits-Check)
 run_delete_dirs() {
-    # Pruefen ob root oder workspace Daten enthalten
-    if ! is_empty "$USER_HOME/root" || ! is_empty "$USER_HOME/workspace"; then
-        zenity --error --text="Abbruch: root oder workspace Verzeichnis ist nicht leer!"
+    if has_files "$HOME/root" || has_files "$HOME/workspace"; then
+        zenity --error --text="Abbruch: root oder workspace enthaelt noch Dateien!"
         return
     fi
     
-    # Loeschen
-    rm -rf "$USER_HOME/root" "$USER_HOME/workspace"
-    rm "$USER_HOME/Desktop/root" "$USER_HOME/Desktop/workspace" 2>/dev/null
+    rm -rf "$HOME/root" "$HOME/workspace"
+    rm "$HOME/Desktop/root" "$HOME/Desktop/workspace" 2>/dev/null
     
-    # Standardordner wiederherstellen
-    mkdir -p ~/Bilder ~/Videos ~/Musik ~/Dokumente
-    xdg-user-dirs-update --set PICTURES "$USER_HOME/Bilder"
-    xdg-user-dirs-update --set VIDEOS "$USER_HOME/Videos"
+    STD_FOLDERS=$(grep "NAMES" "$CONFIG_FILE" | cut -d'=' -f2 | tr ',' ' ')
+    for f in $STD_FOLDERS; do mkdir -p "$HOME/$f"; done
     
-    zenity --info --text="X-Root Verzeichnisse geloescht und Standardordner wiederhergestellt."
+    zenity --info --text="X-Root Verzeichnisse entfernt, Standardordner wiederhergestellt."
 }
 
-# 3. SSD Einhaengen
 run_ssd_mount() {
     DEVICES=$(lsblk -p -rn -o NAME,SIZE,TYPE,UUID | awk '$3=="part" {print $1 "|" $2 "|" $4}')
     CHOICE_ROW=$(echo "$DEVICES" | tr '|' '\n' | zenity --list --title="X-Root: Partition waehlen" \
@@ -69,11 +57,9 @@ run_ssd_mount() {
     sed -i "s|^UUID=.*|UUID=$SEL_UUID|" "$CONFIG_FILE"
     sudo mkdir -p /mnt/m2_root
     FSTAB_LINE="UUID=$SEL_UUID /mnt/m2_root ntfs-3g defaults,uid=$(id -u),gid=$(id -g),umask=007 0 2"
-    if ! grep -q "$SEL_UUID" /etc/fstab; then
-        echo "$FSTAB_LINE" | sudo tee -a /etc/fstab
-    fi
+    if ! grep -q "$SEL_UUID" /etc/fstab; then echo "$FSTAB_LINE" | sudo tee -a /etc/fstab; fi
     sudo mount -a
-    zenity --info --text="SSD erfolgreich eingebunden!"
+    zenity --info --text="X-Root Storage erfolgreich eingebunden!"
 }
 
 # --- HAUPTMENUE ---
@@ -101,6 +87,7 @@ while true; do
         "Insync") insync show & ;;
         "Uninstall (Soft)") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
         "Uninstall (Vollstaendig)") 
+            zenity --question --text="ACHTUNG: Dies wird die X-Root Konfiguration und den Starter komplett vom System entfernen. Fortfahren?" || continue
             sudo umount /mnt/m2_root 2>/dev/null
             sudo sed -i '/m2_root/d' /etc/fstab
             rm "$HOME/.local/share/applications/xrootmounter.desktop"
