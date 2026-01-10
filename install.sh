@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Setup fuer X-Root Mounter mit Logging
+# install.sh - Robustes Setup fuer X-Root Mounter
 
 LOGFILE="/tmp/xroot_install.log"
 if [[ "$*" == *"--log"* ]]; then
@@ -7,77 +7,58 @@ if [[ "$*" == *"--log"* ]]; then
     echo "--- LOG START: $(date) ---"
 fi
 
-REAL_USER=$(id -un)
-REAL_HOME=$(eval echo ~$REAL_USER)
-BIN_DIR="$REAL_HOME/.local/bin"
-CONFIG_DIR="$REAL_HOME/.config/rootmounter"
+USER_NAME=$(id -un)
+USER_HOME=$(eval echo ~$USER_NAME)
+BIN_DIR="$USER_HOME/.local/bin"
+CONFIG_DIR="$USER_HOME/.config/rootmounter"
 REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
 
-# Zorin Basis ermitteln
-BASE_VER=$(lsb_release -cs)
-case "$BASE_VER" in
-    "jammy"|"zorin") CODENAME="jammy" ;;
-    "focal") CODENAME="focal" ;;
-    *) CODENAME="jammy" ;;
-esac
-
-echo "System-Vorbereitung fuer $CODENAME..."
+# Korrekte System-Basis ermitteln
+CODENAME=$(lsb_release -cs)
+echo "System-Basis erkannt: $CODENAME"
 
 # 1. Software Installation
 sudo apt-get update
-sudo apt-get install -y flatpak curl zenity xdg-user-dirs software-properties-common
+sudo apt-get install -y flatpak curl zenity xdg-user-dirs software-properties-common gpg
 
 # Cryptomator
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 flatpak install -y flathub org.cryptomator.Cryptomator
 
-# Cryptomator Kategorie anpassen (Systemwerkzeuge)
-FILE_PATH="/var/lib/flatpak/exports/share/applications/org.cryptomator.Cryptomator.desktop"
-if [ -f "$FILE_PATH" ]; then
-    sudo sed -i 's/Categories=.*/Categories=System;Utility;SystemTools;/' "$FILE_PATH"
-fi
+# Insync Schluessel-Fix: Direkter Download des Keys
+sudo mkdir -p /usr/share/keyrings
+sudo gpg --no-default-keyring --keyring /usr/share/keyrings/insync-archive-keyring.gpg --keyserver keyserver.ubuntu.com --recv-keys ACCAF35C
 
-# Insync
-curl -s https://auth.insync.io/keys/insync.asc | sudo gpg --dearmor --yes -o /usr/share/keyrings/insync-archive-keyring.gpg
+# Insync Repo mit korrekter Basis (noble/jammy)
 echo "deb [signed-by=/usr/share/keyrings/insync-archive-keyring.gpg] http://apt.insync.io/ubuntu $CODENAME non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
+
 sudo apt-get update
 sudo apt-get install -y insync
 
-# 2. Config & Skripte
+# 2. Skripte laden & Pfade sicherstellen
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
+rm -f "$BIN_DIR/xrootmounter" # Alte Version loeschen
 curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
 
-# Standard-Config mit Standard-Ordnern
-cat <<EOF > "$CONFIG_DIR/config.ini"
-[Hardware]
-UUID=UNBEKANNT
-MOUNT_POINT=/mnt/m2_root
-
-[StandardFolders]
-NAMES=Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich
-
-[Structure]
-ROOT_SUBFOLDERS=backup,client,clientpic,clientshare1,control,db,document,gallery,project,replicate,shareprg,softinst,softinst-shared,temp,template,web,whitepaper
-WORKSPACE_SUBFOLDERS=user-backup,user-control,user-db,user-document,user-download,user-favorites,user-gallery,user-template,user-web
-EOF
-
-# Desktop Starter
-cat <<EOF > "$REAL_HOME/.local/share/applications/xrootmounter.desktop"
+# 3. Desktop Starter mit absolutem Pfad
+cat <<EOF > "$USER_HOME/.local/share/applications/xrootmounter.desktop"
 [Desktop Entry]
 Name=X-Root Mounter
 Exec=$BIN_DIR/xrootmounter
 Icon=drive-harddisk
 Type=Application
 Terminal=false
-Categories=System;Utility;
+Categories=System;Utility;SystemTools;
 EOF
 
-update-desktop-database "$REAL_HOME/.local/share/applications"
+update-desktop-database "$USER_HOME/.local/share/applications"
 
+# Abschluss
 if [[ "$*" == *"--log"* ]]; then
-    zenity --info --text="Installation beendet. Das Log wird nun geoeffnet."
+    zenity --info --text="Installation beendet. Falls Insync immer noch fehlt, pruefe das Log."
     xdg-open "$LOGFILE"
 fi
 
-$BIN_DIR/xrootmounter &
+# App gezielt starten
+nohup "$BIN_DIR/xrootmounter" >/dev/null 2>&1 &
