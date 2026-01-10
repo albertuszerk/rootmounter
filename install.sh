@@ -1,17 +1,24 @@
 #!/bin/bash
-# install.sh - X-Root Mounter Setup (Version 18.0)
+# install.sh - X-Root Mounter Setup (Version 19.0)
 
 LOGFILE="/tmp/xroot_install.log"
-rm -f "$LOGFILE" # Log automatisch bereinigen
+rm -f "$LOGFILE" # Altes Log loeschen 
 
 if [[ "$*" == *"--log"* ]]; then
     exec > >(tee -a "$LOGFILE") 2>&1
     echo "--- LOG START: $(date) ---"
 fi
 
-# 1. Desktop-Pfad Fix (Radikale Aufraeumung)
+# 1. Start-Abfrage (Wiederhergestellt)
+zenity --question --title="X-Root Installation" --text="Wollen Sie mit der Installation von X-Root Mounter fortfahren?" || exit 0
+
 USER_HOME=$HOME
-# Wir biegen die Pfade auf einen versteckten Ordner um, damit sie vom Desktop verschwinden
+BIN_DIR="$USER_HOME/.local/bin"
+CONFIG_DIR="$USER_HOME/.config/rootmounter"
+REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
+
+# 2. Desktop-Pfad Fix (Radikale Aufraeumung)
+# Wir biegen die Standardpfade auf einen versteckten Ordner um
 HIDDEN_BASE="$USER_HOME/.local/share/xroot_hidden"
 mkdir -p "$HIDDEN_BASE"/{Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich}
 
@@ -26,27 +33,24 @@ XDG_PICTURES_DIR="\$HOME/.local/share/xroot_hidden/Bilder"
 XDG_VIDEOS_DIR="\$HOME/.local/share/xroot_hidden/Videos"
 EOF
 
-# 2. Software & Insync GPG-Fix (Direkt-Import ohne dirmngr)
+# 3. Software & Insync Fix (Noble/Zorin 17) [cite: 3, 10]
 sudo apt update
 sudo apt install -y curl gpg wget zenity xdg-user-dirs flatpak
 
-echo "Lade Insync Schluessel herunter..."
+# Insync Schluessel-Fix: Direkt vom Ubuntu Keyserver laden (ACCAF35C) 
 sudo mkdir -p /etc/apt/keyrings
-# Wir laden den Key direkt herunter und dearmoren ihn ohne dirmngr-Abhaengigkeit
-wget -qO- https://auth.insync.io/keys/insync.asc | sudo gpg --dearmor --yes -o /etc/apt/keyrings/insync.gpg
+sudo gpg --no-default-keyring --keyring /etc/apt/keyrings/insync.gpg --keyserver keyserver.ubuntu.com --recv-keys ACCAF35C
 
 echo "deb [signed-by=/etc/apt/keyrings/insync.gpg] http://apt.insync.io/ubuntu noble non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
 sudo apt update
-sudo apt install -y insync
+sudo apt install -y insync [cite: 11]
 
-# 3. Skripte & Config laden (Wir ueberschreiben die .ini, um das neue Format zu erzwingen)
-BIN_DIR="$USER_HOME/.local/bin"
-CONFIG_DIR="$USER_HOME/.config/rootmounter"
+# 4. Skripte & Config laden (Wir ueberschreiben die .ini fuer das neue Format)
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
-curl -sL "https://raw.githubusercontent.com/albertuszerk/rootmounter/main/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
+curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
 
-# UUID aus der alten Datei retten
+# UUID retten falls vorhanden
 OLD_UUID=$(grep "UUID=" "$CONFIG_DIR/config.ini" 2>/dev/null | cut -d'=' -f2)
 
 cat <<EOF > "$CONFIG_DIR/config.ini"
