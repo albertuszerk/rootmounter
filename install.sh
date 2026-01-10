@@ -1,61 +1,62 @@
 #!/bin/bash
-# install.sh - X-Root Mounter Setup (Version 13.0)
+# install.sh - X-Root Mounter Setup (Version 14.0)
 
 LOGFILE="/tmp/xroot_install.log"
-rm -f "$LOGFILE"
+rm -f "$LOGFILE" # Altes Log automatisch loeschen 
 
-# Log-Funktion aktivieren, wenn --log uebergeben wurde
 if [[ "$*" == *"--log"* ]]; then
     exec > >(tee -a "$LOGFILE") 2>&1
     echo "--- LOG START: $(date) ---"
 fi
 
-# Vorab-Abfrage
-zenity --question --title="X-Root Installation" --text="Wollen Sie mit der Installation von X-Root Mounter fortfahren?" || exit 0
+zenity --question --title="X-Root Installation" --text="Moechten Sie mit der Installation fortfahren?" || exit 0
 
 USER_HOME=$HOME
 BIN_DIR="$USER_HOME/.local/bin"
 CONFIG_DIR="$USER_HOME/.config/rootmounter"
 REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
 
-# 1. Desktop-Pfad reparieren (Desktop-Muell entfernen)
-# Wir biegen die Standardordner in ein Unterverzeichnis im Home um
-mkdir -p "$USER_HOME/Schreibtisch"
-mkdir -p "$USER_HOME/.local/share/xroot_backup"
-cat <<EOF > "$USER_HOME/.config/user-dirs.dirs"
-XDG_DESKTOP_DIR="\$HOME/Schreibtisch"
-XDG_DOWNLOAD_DIR="\$HOME/Downloads"
-XDG_TEMPLATES_DIR="\$HOME/.local/share/xroot_backup"
-XDG_PUBLICSHARE_DIR="\$HOME/.local/share/xroot_backup"
-XDG_DOCUMENTS_DIR="\$HOME/.local/share/xroot_backup"
-XDG_MUSIC_DIR="\$HOME/.local/share/xroot_backup"
-XDG_PICTURES_DIR="\$HOME/.local/share/xroot_backup"
-XDG_VIDEOS_DIR="\$HOME/.local/share/xroot_backup"
-EOF
-
-# 2. Software & Insync Fix (Der "GPG-Killer")
+# 1. Software & Direkter Insync-Key Fix (Vermeidet )
 sudo apt update
-sudo apt install -y curl gpg wget zenity xdg-user-dirs
+sudo apt install -y curl gpg wget zenity xdg-user-dirs flatpak
 
-# Insync Schluessel sauber importieren
+# Insync Schluessel ohne Umwege direkt in den Keyring schreiben
 sudo mkdir -p /usr/share/keyrings
-# Wir laden die Datei erst lokal herunter, um Pipe-Fehler zu vermeiden
-curl -L -s https://auth.insync.io/keys/insync.asc -o /tmp/insync.asc
-sudo gpg --dearmor --yes -o /usr/share/keyrings/insync-archive-keyring.gpg /tmp/insync.asc
+curl -fsSL https://auth.insync.io/keys/insync.asc | sudo gpg --dearmor --yes -o /usr/share/keyrings/insync-archive-keyring.gpg
 
 echo "deb [signed-by=/usr/share/keyrings/insync-archive-keyring.gpg] http://apt.insync.io/ubuntu noble non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
 sudo apt update
 sudo apt install -y insync
 
-# Cryptomator via Flatpak
-sudo apt install -y flatpak
-flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install -y flathub org.cryptomator.Cryptomator
-
-# 3. Skripte & Config laden
+# 2. Skripte laden
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
 curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
+
+# 3. Die neue, selbsterklaerende .ini
+if [ ! -f "$CONFIG_DIR/config.ini" ]; then
+cat <<EOF > "$CONFIG_DIR/config.ini"
+[Hardware]
+UUID=UNBEKANNT
+MOUNT_POINT=/mnt/m2_root
+
+[StandardFolders]
+# Diese Ordner werden geloescht, wenn sie leer sind.
+NAMES=Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich
+
+[Roots]
+# Definition der Hauptordner und ihrer Icon-Farben.
+# Format: Ordnername:Farbe (Moeglich: blue, green, red, yellow, violet, grey)
+# Beispiel fuer Erweiterung: MAIN_FOLDERS=root:blue,workspace:green,workspace2:violet,workspace3:red
+MAIN_FOLDERS=root:blue,workspace:green,workspace2:violet
+
+[Subfolders]
+# Hier definierst du die Unterordner fuer JEDEN oben genannten Hauptordner.
+root=backup,client,clientpic,control,db,document,project,web
+workspace=user-backup,user-control,user-db,user-document
+workspace2=test1,test2,test3
+EOF
+fi
 
 # 4. Starter
 cat <<EOF > "$USER_HOME/.local/share/applications/xrootmounter.desktop"
