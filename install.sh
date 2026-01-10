@@ -1,9 +1,8 @@
 #!/bin/bash
-# install.sh - Setup fuer X-Root Mounter (Version 7.0)
+# install.sh - X-Root Mounter Setup (Version 8.0)
 
 LOGFILE="/tmp/xroot_install.log"
-# Altes Log automatisch loeschen
-rm -f "$LOGFILE"
+rm -f "$LOGFILE" # Altes Log loeschen
 
 if [[ "$*" == *"--log"* ]]; then
     exec > >(tee -a "$LOGFILE") 2>&1
@@ -19,21 +18,27 @@ BIN_DIR="$USER_HOME/.local/bin"
 CONFIG_DIR="$USER_HOME/.config/rootmounter"
 REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
 
+# System-Basis ermitteln
 CODENAME=$(lsb_release -cs)
 echo "System-Basis: $CODENAME"
 
-# 1. Software & GPG Fix (Insync Schluessel ohne dirmngr)
+# 1. Software & GPG Fix
 sudo apt-get update
-sudo apt-get install -y flatpak curl zenity xdg-user-dirs software-properties-common
+sudo apt-get install -y flatpak curl zenity xdg-user-dirs software-properties-common gpg
+
+# Cryptomator via Flatpak
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak install -y flathub org.cryptomator.Cryptomator
+
+# Insync Schluessel-Fix (Direkt-Import) 
 sudo mkdir -p /etc/apt/keyrings
-curl -s https://auth.insync.io/keys/insync.asc | sudo gpg --dearmor -o /etc/apt/keyrings/insync.gpg
+curl -s https://auth.insync.io/keys/insync.asc | sudo gpg --dearmor --yes -o /etc/apt/keyrings/insync.gpg
 echo "deb [signed-by=/etc/apt/keyrings/insync.gpg] http://apt.insync.io/ubuntu $CODENAME non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
 
 sudo apt-get update
 sudo apt-get install -y insync
-flatpak install -y flathub org.cryptomator.Cryptomator
 
-# 2. Skripte & Config
+# 2. Skripte laden
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
 curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
@@ -52,7 +57,7 @@ WORKSPACE_SUBFOLDERS=user-backup,user-control,user-db,user-document,user-downloa
 EOF
 fi
 
-# 3. Starter
+# 3. Desktop Starter (Systemwerkzeuge)
 cat <<EOF > "$USER_HOME/.local/share/applications/xrootmounter.desktop"
 [Desktop Entry]
 Name=X-Root Mounter
@@ -70,4 +75,4 @@ if [[ "$*" == *"--log"* ]]; then
     xdg-open "$LOGFILE"
 fi
 
-"$BIN_DIR/xrootmounter" &
+nohup "$BIN_DIR/xrootmounter" >/dev/null 2>&1 &
