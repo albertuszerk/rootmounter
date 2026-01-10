@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Finales Setup fuer X-Root Mounter
+# install.sh - X-Root Mounter Setup (Version 23.0)
 
 LOGFILE="/tmp/xroot_install.log"
 rm -f "$LOGFILE"
@@ -9,6 +9,7 @@ if [[ "$*" == *"--log"* ]]; then
     echo "--- LOG START: $(date) ---"
 fi
 
+# 1. Start-Abfrage
 zenity --question --title="X-Root Installation" --text="Moechten Sie mit der Installation von X-Root Mounter fortfahren?" || exit 0
 
 USER_HOME=$HOME
@@ -16,7 +17,12 @@ BIN_DIR="$USER_HOME/.local/bin"
 CONFIG_DIR="$USER_HOME/.config/rootmounter"
 REPO_URL="https://raw.githubusercontent.com/albertuszerk/rootmounter/main"
 
-# 1. Desktop-Hygiene
+# 2. USB-Sleep (Autosuspend) deaktivieren
+echo "Deaktiviere USB-Autosuspend fuer stabile SSD-Verbindung..."
+sudo mkdir -p /etc/modprobe.d/
+echo "options usbcore autosuspend=-1" | sudo tee /etc/modprobe.d/disable-usb-autosuspend.conf > /dev/null
+
+# 3. Desktop-Hygiene (Pfade auf versteckten Ordner biegen)
 mkdir -p "$USER_HOME/Schreibtisch"
 HIDDEN_BASE="$USER_HOME/.local/share/xroot_hidden"
 mkdir -p "$HIDDEN_BASE"/{Bilder,Videos,Musik,Dokumente,Vorlagen,Oeffentlich}
@@ -32,21 +38,12 @@ XDG_PICTURES_DIR="\$HOME/.local/share/xroot_hidden/Bilder"
 XDG_VIDEOS_DIR="\$HOME/.local/share/xroot_hidden/Videos"
 EOF
 
-# 2. Software & Insync (Die nun funktionierende Methode)
-sudo apt update
-sudo apt install -y curl gpg wget zenity xdg-user-dirs flatpak
-sudo mkdir -p -m 755 /usr/share/keyrings
-curl -skL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xA684470CACCAF35C" | sed -n '/-----BEGIN PGP PUBLIC KEY BLOCK-----/,/-----END PGP PUBLIC KEY BLOCK-----/p' | gpg --dearmor | sudo tee /usr/share/keyrings/insync-archive-keyring.gpg > /dev/null
-echo "deb [signed-by=/usr/share/keyrings/insync-archive-keyring.gpg] http://apt.insync.io/ubuntu noble non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
-sudo apt update
-sudo apt install -y insync
-
-# 3. Skripte & Config
+# 4. Skripte & Config
 mkdir -p "$BIN_DIR" "$CONFIG_DIR"
 curl -sL "$REPO_URL/xrootmounter.sh" -o "$BIN_DIR/xrootmounter"
 chmod +x "$BIN_DIR/xrootmounter"
 
-# INI-Update
+# INI-Update (History-freundlich)
 OLD_UUID=$(grep "UUID=" "$CONFIG_DIR/config.ini" 2>/dev/null | cut -d'=' -f2)
 cat <<EOF > "$CONFIG_DIR/config.ini"
 [Hardware]
@@ -75,5 +72,4 @@ EOF
 
 update-desktop-database "$USER_HOME/.local/share/applications"
 xdg-user-dirs-update --force
-[[ "$*" == *"--log"* ]] && xdg-open "$LOGFILE"
 nohup "$BIN_DIR/xrootmounter" >/dev/null 2>&1 &
