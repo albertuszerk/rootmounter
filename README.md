@@ -1,6 +1,5 @@
 # Whitepaper: X-Root Mounter v1.0
 ### Konzept für digitale Souveränität und Hardware-Autonomie
-**Autor: Albertus Zerk**
 
 ---
 
@@ -93,5 +92,11 @@ Der Installationsprozess ist schlicht gehalten. Das Skript wartet auf Systemress
 **Standard-Befehl:**
 ```bash <(curl -sL https://raw.githubusercontent.com/albertuszerk/rootmounter/main/install.sh)```
 
+*Hinweis für Profis: Mit dem Parameter `--log` kannst du dem Computer beim Arbeiten genau auf die Finger schauen.*
 
+---
+
+### Mitwirkende
+* **Vision & Pädagogische Gesamtleitung:** Albertus Zerk
+* **Technik-Partner:** Gemini AI
 
