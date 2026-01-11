@@ -1,6 +1,7 @@
 <p align="center">
   <img src="images/banner.png" alt="X-Root Mounter Banner" width="100%">
 </p>
+
 # Whitepaper: X-Root Mounter v1.0
 
 ### Konzept für digitale Souveränität und Hardware-Autonomie
