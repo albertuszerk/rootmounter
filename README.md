@@ -92,4 +92,4 @@ Der Installationsprozess ist schlicht gehalten. Das Skript wartet auf Systemress
 
 **Standard-Befehl:**
 ```bash
-bash <(curl -sL [https://raw.githubusercontent.com/albertuszerk/rootmounter/main/install.sh](https://raw.githubusercontent.com/albertuszerk/rootmounter/main/install.sh))
+bash <(curl -sL https://raw.githubusercontent.com/albertuszerk/rootmounter/main/install.sh)
