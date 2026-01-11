@@ -91,5 +91,7 @@ Digitale Freiheit erfordert eine bewusste Investition in Infrastruktur.
 Der Installationsprozess ist schlicht gehalten. Das Skript wartet auf Systemressourcen und führt den Nutzer danach durch die 5 Schritte.
 
 **Standard-Befehl:**
-```bash
-bash <(curl -sL https://raw.githubusercontent.com/albertuszerk/rootmounter/main/install.sh)
+```bash <(curl -sL https://raw.githubusercontent.com/albertuszerk/rootmounter/main/install.sh)```
+
+
+
