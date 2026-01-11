@@ -75,6 +75,16 @@ Damit die Daten auch auf dem Smartphone oder Tablet sicher verfügbar sind, müs
 
 ---
 
+
+### Mobile Apps
+
+| System | Verfügbare Apps (Direktlinks) |
+| :--- | :--- |
+| 🤖 **Android** | [Cryptomator](https://play.google.com/store/apps/details?id=org.cryptomator) · [OneDrive](https://play.google.com/store/apps/details?id=com.microsoft.skydrive) · [Dropbox](https://play.google.com/store/apps/details?id=com.dropbox.android) · [Drive](https://play.google.com/store/apps/details?id=com.google.android.apps.docs) |
+| 🍎 **iOS** | [Cryptomator](https://apps.apple.com/app/cryptomator/id1560822163) · [OneDrive](https://apps.apple.com/app/microsoft-onedrive/id477503399) · [Dropbox](https://apps.apple.com/app/dropbox/id327630330) · [Drive](https://apps.apple.com/app/google-drive/id507874739) |
+
+
+
 ## VI. Wirtschaftliche Transparenz
 
 Digitale Freiheit erfordert eine bewusste Investition in Infrastruktur.
