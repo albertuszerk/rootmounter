@@ -52,8 +52,9 @@ Souveränität bedeutet auch, die Cloud zu nutzen, ohne sich ihr auszuliefern. W
 
 | | | |
 |:---:|:---:|:---:|
-| ![Bild 1](images/01.png)<br>Setup-Maske | ![Bild 2](images/02.png)<br>Partitionswahl | ![Bild 3](images/03.png)<br>Seitenleiste |
-| ![Bild 4](images/04.png)<br>Ordnerstruktur | ![Bild 5](images/05.png)<br>Cryptomator | ![Bild 6](images/06.png)<br>Desktop-Hygiene |
+| ![Bild 1](images/01.png)<br>X-Root Mounter Setup starten | ![Bild 2](images/02.png)<br>Bestehende Laufwerke anzeigen | ![Bild 3](images/03.png)<br>Partition auswaehlen |
+| ![Bild 4](images/04.png)<br>Konfiguration editieren | ![Bild 5](images/05.png)<br>Gewuenschte Verzeichnisstruktur automatisch erstellen lassen | ![Bild 6](images/06.png)<br>Perfekt in den Dateimanager eingebunden |
+| ![Bild 7](images/07.png)<br>Insync und Cryptomator starten | ![Bild 8](images/08.png)<br>Starter Icon entfernen | ![Bild 9](images/09.png)<br>Falls notwendig, kann die ganze App deinstalliert werden. Mit Sicherheitscheck, vorhandene Files werden nicht geloescht! |
 
 ---
 
