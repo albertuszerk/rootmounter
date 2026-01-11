@@ -99,6 +99,7 @@ Der Installationsprozess ist schlicht gehalten. Das Skript wartet auf Systemress
 * **Vision & Pädagogische Gesamtleitung:** Albertus Zerk
 * **Technik-Partner:** Gemini AI
 
-## VIII. Hashtags
+
+**Hashtags:**
 #xrootmounter #yubicosyslock #albertuszerk #zorinos #linux #privacy #encryption #cryptomator #insync #yubikey #dataownership #digitalsouveraenitaet #elearning #education #cybersecurity #opensource #m2ssd #externalssd #workspace #medienkompetenz #datenschutz #verschluesselung #homeschooling #pedagogy #datensicherheit #digitalautonomie #futureeducation #privacybydesign #multicloud #massgeschneidert #createfolder
 
