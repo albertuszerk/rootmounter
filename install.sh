@@ -31,6 +31,10 @@ echo "options usbcore autosuspend=-1" | sudo tee /etc/modprobe.d/disable-usb-aut
 # 4. Software & Desktop-Pfad Fix
 sudo apt update
 sudo apt install -y curl gpg wget zenity xdg-user-dirs flatpak
+
+# NEU: Flatpak-Berechtigung für den Zugriff auf externe Laufwerke setzen
+flatpak override --user --filesystem=host org.cryptomator.Cryptomator 2>/dev/null
+
 sudo mkdir -p -m 755 /usr/share/keyrings
 curl -skL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xA684470CACCAF35C" | sed -n '/-----BEGIN PGP PUBLIC KEY BLOCK-----/,/-----END PGP PUBLIC KEY BLOCK-----/p' | gpg --dearmor | sudo tee /usr/share/keyrings/insync-archive-keyring.gpg > /dev/null
 echo "deb [signed-by=/usr/share/keyrings/insync-archive-keyring.gpg] http://apt.insync.io/ubuntu noble non-free contrib" | sudo tee /etc/apt/sources.list.d/insync.list
