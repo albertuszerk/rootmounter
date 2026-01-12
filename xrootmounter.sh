@@ -119,7 +119,7 @@ while true; do
         "4) Verzeichnisse modifizieren") run_modify_dirs ;;
         "5) Starter-Icon entfernen") rm "$HOME/.local/share/applications/xrootmounter.desktop"; exit 0 ;;
         "   ") continue ;;
-        "Cryptomator starten") flatpak run org.cryptomator.Cryptomator & ;;
+        "Cryptomator starten") flatpak override --user --filesystem=host org.cryptomator.Cryptomator 2>/dev/null; flatpak run org.cryptomator.Cryptomator & ;;
         "Insync starten") insync start 2>/dev/null; sleep 1; insync show & ;;
         "Verzeichnisse loeschen (falls leer)") 
             if ! is_folder_empty "$HOME/root" || ! is_folder_empty "$HOME/workspace"; then
